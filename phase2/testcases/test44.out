@@ -1,0 +1,285 @@
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+start2(): started
+start2(): MboxCreate returned id = 7
+start2(): forking XXp1
+start2(): forking XXp2
+XXp1(): started
+XXp1(): sending message #0 to mailbox 7
+XXp1(): after send of message #0, result = 0
+XXp1(): sending message #500 to mailbox 7
+XXp1(): after send of message #500, result = 0
+XXp1(): sending message #1000 to mailbox 7
+XXp1(): after send of message #1000, result = 0
+XXp1(): sending message #1201 to mailbox 7
+XXp1(): after send of message #1201, result = 0
+XXp1(): sending message #1202 to mailbox 7
+XXp1(): after send of message #1202, result = 0
+XXp1(): sending message #1203 to mailbox 7
+XXp1(): after send of message #1203, result = 0
+XXp1(): sending message #1204 to mailbox 7
+XXp1(): after send of message #1204, result = 0
+XXp1(): sending message #1205 to mailbox 7
+XXp1(): after send of message #1205, result = 0
+XXp1(): sending message #1206 to mailbox 7
+XXp1(): after send of message #1206, result = 0
+XXp1(): sending message #1207 to mailbox 7
+XXp1(): after send of message #1207, result = 0
+XXp1(): sending message #1208 to mailbox 7
+XXp1(): after send of message #1208, result = 0
+XXp1(): sending message #1209 to mailbox 7
+XXp1(): after send of message #1209, result = 0
+XXp1(): sending message #1210 to mailbox 7
+XXp1(): after send of message #1210, result = 0
+XXp1(): sending message #1211 to mailbox 7
+XXp1(): after send of message #1211, result = 0
+XXp1(): sending message #1212 to mailbox 7
+XXp1(): after send of message #1212, result = 0
+XXp1(): sending message #1213 to mailbox 7
+XXp1(): after send of message #1213, result = 0
+XXp1(): sending message #1214 to mailbox 7
+XXp1(): after send of message #1214, result = 0
+XXp1(): sending message #1215 to mailbox 7
+XXp1(): after send of message #1215, result = 0
+XXp1(): sending message #1216 to mailbox 7
+XXp1(): after send of message #1216, result = 0
+XXp1(): sending message #1217 to mailbox 7
+XXp1(): after send of message #1217, result = 0
+XXp1(): sending message #1218 to mailbox 7
+XXp1(): after send of message #1218, result = 0
+XXp1(): sending message #1219 to mailbox 7
+XXp1(): after send of message #1219, result = 0
+XXp1(): sending message #1220 to mailbox 7
+XXp1(): after send of message #1220, result = 0
+XXp1(): sending message #1221 to mailbox 7
+XXp1(): after send of message #1221, result = 0
+XXp1(): sending message #1222 to mailbox 7
+XXp1(): after send of message #1222, result = 0
+XXp1(): sending message #1223 to mailbox 7
+XXp1(): after send of message #1223, result = 0
+XXp1(): sending message #1224 to mailbox 7
+XXp1(): after send of message #1224, result = 0
+XXp1(): sending message #1225 to mailbox 7
+XXp1(): after send of message #1225, result = 0
+XXp1(): sending message #1226 to mailbox 7
+XXp1(): after send of message #1226, result = 0
+XXp1(): sending message #1227 to mailbox 7
+XXp1(): after send of message #1227, result = 0
+XXp1(): sending message #1228 to mailbox 7
+XXp1(): after send of message #1228, result = 0
+XXp1(): sending message #1229 to mailbox 7
+XXp1(): after send of message #1229, result = 0
+XXp1(): sending message #1230 to mailbox 7
+XXp1(): after send of message #1230, result = 0
+XXp1(): sending message #1231 to mailbox 7
+XXp1(): after send of message #1231, result = 0
+XXp1(): sending message #1232 to mailbox 7
+XXp1(): after send of message #1232, result = 0
+XXp1(): sending message #1233 to mailbox 7
+XXp1(): after send of message #1233, result = 0
+XXp1(): sending message #1234 to mailbox 7
+XXp1(): after send of message #1234, result = 0
+XXp1(): sending message #1235 to mailbox 7
+XXp1(): after send of message #1235, result = 0
+XXp1(): sending message #1236 to mailbox 7
+XXp1(): after send of message #1236, result = 0
+XXp1(): sending message #1237 to mailbox 7
+XXp1(): after send of message #1237, result = 0
+XXp1(): sending message #1238 to mailbox 7
+XXp1(): after send of message #1238, result = 0
+XXp1(): sending message #1239 to mailbox 7
+XXp1(): after send of message #1239, result = 0
+XXp1(): sending message #1240 to mailbox 7
+XXp1(): after send of message #1240, result = 0
+XXp1(): sending message #1241 to mailbox 7
+XXp1(): after send of message #1241, result = 0
+XXp1(): sending message #1242 to mailbox 7
+XXp1(): after send of message #1242, result = 0
+XXp1(): sending message #1243 to mailbox 7
+XXp1(): after send of message #1243, result = 0
+XXp1(): sending message #1244 to mailbox 7
+XXp1(): after send of message #1244, result = 0
+XXp1(): sending message #1245 to mailbox 7
+XXp1(): after send of message #1245, result = 0
+XXp1(): sending message #1246 to mailbox 7
+XXp1(): after send of message #1246, result = 0
+XXp1(): sending message #1247 to mailbox 7
+XXp1(): after send of message #1247, result = 0
+XXp1(): sending message #1248 to mailbox 7
+XXp1(): after send of message #1248, result = 0
+XXp1(): sending message #1249 to mailbox 7
+XXp1(): after send of message #1249, result = 0
+start2(): joined with kid 5, status = 3
+XXp2(): started
+XXp2(): sending message #0 to mailbox 7
+XXp2(): after send of message #0, result = 0
+XXp2(): sending message #500 to mailbox 7
+XXp2(): after send of message #500, result = 0
+XXp2(): sending message #1000 to mailbox 7
+XXp2(): after send of message #1000, result = 0
+XXp2(): sending message #1201 to mailbox 7
+XXp2(): after send of message #1201, result = 0
+XXp2(): sending message #1202 to mailbox 7
+XXp2(): after send of message #1202, result = 0
+XXp2(): sending message #1203 to mailbox 7
+XXp2(): after send of message #1203, result = 0
+XXp2(): sending message #1204 to mailbox 7
+XXp2(): after send of message #1204, result = 0
+XXp2(): sending message #1205 to mailbox 7
+XXp2(): after send of message #1205, result = 0
+XXp2(): sending message #1206 to mailbox 7
+XXp2(): after send of message #1206, result = 0
+XXp2(): sending message #1207 to mailbox 7
+XXp2(): after send of message #1207, result = 0
+XXp2(): sending message #1208 to mailbox 7
+XXp2(): after send of message #1208, result = 0
+XXp2(): sending message #1209 to mailbox 7
+XXp2(): after send of message #1209, result = 0
+XXp2(): sending message #1210 to mailbox 7
+XXp2(): after send of message #1210, result = 0
+XXp2(): sending message #1211 to mailbox 7
+XXp2(): after send of message #1211, result = 0
+XXp2(): sending message #1212 to mailbox 7
+XXp2(): after send of message #1212, result = 0
+XXp2(): sending message #1213 to mailbox 7
+XXp2(): after send of message #1213, result = 0
+XXp2(): sending message #1214 to mailbox 7
+XXp2(): after send of message #1214, result = 0
+XXp2(): sending message #1215 to mailbox 7
+XXp2(): after send of message #1215, result = 0
+XXp2(): sending message #1216 to mailbox 7
+XXp2(): after send of message #1216, result = 0
+XXp2(): sending message #1217 to mailbox 7
+XXp2(): after send of message #1217, result = 0
+XXp2(): sending message #1218 to mailbox 7
+XXp2(): after send of message #1218, result = 0
+XXp2(): sending message #1219 to mailbox 7
+XXp2(): after send of message #1219, result = 0
+XXp2(): sending message #1220 to mailbox 7
+XXp2(): after send of message #1220, result = 0
+XXp2(): sending message #1221 to mailbox 7
+XXp2(): after send of message #1221, result = 0
+XXp2(): sending message #1222 to mailbox 7
+XXp2(): after send of message #1222, result = 0
+XXp2(): sending message #1223 to mailbox 7
+XXp2(): after send of message #1223, result = 0
+XXp2(): sending message #1224 to mailbox 7
+XXp2(): after send of message #1224, result = 0
+XXp2(): sending message #1225 to mailbox 7
+XXp2(): after send of message #1225, result = 0
+XXp2(): sending message #1226 to mailbox 7
+XXp2(): after send of message #1226, result = 0
+XXp2(): sending message #1227 to mailbox 7
+XXp2(): after send of message #1227, result = 0
+XXp2(): sending message #1228 to mailbox 7
+XXp2(): after send of message #1228, result = 0
+XXp2(): sending message #1229 to mailbox 7
+XXp2(): after send of message #1229, result = 0
+XXp2(): sending message #1230 to mailbox 7
+XXp2(): after send of message #1230, result = 0
+XXp2(): sending message #1231 to mailbox 7
+XXp2(): after send of message #1231, result = 0
+XXp2(): sending message #1232 to mailbox 7
+XXp2(): after send of message #1232, result = 0
+XXp2(): sending message #1233 to mailbox 7
+XXp2(): after send of message #1233, result = 0
+XXp2(): sending message #1234 to mailbox 7
+XXp2(): after send of message #1234, result = 0
+XXp2(): sending message #1235 to mailbox 7
+XXp2(): after send of message #1235, result = 0
+XXp2(): sending message #1236 to mailbox 7
+XXp2(): after send of message #1236, result = 0
+XXp2(): sending message #1237 to mailbox 7
+XXp2(): after send of message #1237, result = 0
+XXp2(): sending message #1238 to mailbox 7
+XXp2(): after send of message #1238, result = 0
+XXp2(): sending message #1239 to mailbox 7
+XXp2(): after send of message #1239, result = 0
+start2(): joined with kid 6, status = 3
+start2(): receiving message #0 from mailbox 7
+start2(): result = 24
+start2(): message = 'XXp1(): hello there, #0'
+start2(): receiving message #1 from mailbox 7
+start2(): result = 24
+start2(): message = 'XXp1(): hello there, #1'
+start2(): receiving message #2 from mailbox 7
+start2(): result = 24
+start2(): message = 'XXp1(): hello there, #2'
+start2(): receiving message #3 from mailbox 7
+start2(): result = 24
+start2(): message = 'XXp1(): hello there, #3'
+start2(): receiving message #4 from mailbox 7
+start2(): result = 24
+start2(): message = 'XXp1(): hello there, #4'
+start2(): receiving message #5 from mailbox 7
+start2(): result = 24
+start2(): message = 'XXp1(): hello there, #5'
+start2(): receiving message #6 from mailbox 7
+start2(): result = 24
+start2(): message = 'XXp1(): hello there, #6'
+start2(): receiving message #7 from mailbox 7
+start2(): result = 24
+start2(): message = 'XXp1(): hello there, #7'
+start2(): receiving message #8 from mailbox 7
+start2(): result = 24
+start2(): message = 'XXp1(): hello there, #8'
+start2(): receiving message #9 from mailbox 7
+start2(): result = 24
+start2(): message = 'XXp1(): hello there, #9'
+start2(): sending message #0 to mailbox 7
+start2(): after send of message #0, result = 0
+start2(): sending message #1 to mailbox 7
+start2(): after send of message #1, result = 0
+start2(): sending message #2 to mailbox 7
+start2(): after send of message #2, result = 0
+start2(): sending message #3 to mailbox 7
+start2(): after send of message #3, result = 0
+start2(): sending message #4 to mailbox 7
+start2(): after send of message #4, result = 0
+start2(): sending message #5 to mailbox 7
+start2(): after send of message #5, result = 0
+start2(): sending message #6 to mailbox 7
+start2(): after send of message #6, result = 0
+start2(): sending message #7 to mailbox 7
+start2(): after send of message #7, result = 0
+start2(): sending message #8 to mailbox 7
+start2(): after send of message #8, result = 0
+start2(): sending message #9 to mailbox 7
+start2(): after send of message #9, result = 0
+start2(): sending message #10 to mailbox 7
+start2(): after send of message #10, result = 0
+start2(): sending message #11 to mailbox 7
+start2(): after send of message #11, result = 0
+start2(): sending message #12 to mailbox 7
+start2(): after send of message #12, result = 0
+start2(): sending message #13 to mailbox 7
+start2(): after send of message #13, result = 0
+start2(): sending message #14 to mailbox 7
+start2(): after send of message #14, result = 0
+start2(): sending message #15 to mailbox 7
+start2(): after send of message #15, result = 0
+start2(): sending message #16 to mailbox 7
+start2(): after send of message #16, result = 0
+start2(): sending message #17 to mailbox 7
+start2(): after send of message #17, result = 0
+start2(): sending message #18 to mailbox 7
+start2(): after send of message #18, result = 0
+start2(): sending message #19 to mailbox 7
+start2(): after send of message #19, result = 0
+start2(): sending message #20 to mailbox 7
+start2(): this should return -2
+start2(): after send of message #20, result = -2
+start2(): sending message #21 to mailbox 7
+start2(): this should return -2
+start2(): after send of message #21, result = -2
+start2(): sending message #22 to mailbox 7
+start2(): this should return -2
+start2(): after send of message #22, result = -2
+start2(): sending message #23 to mailbox 7
+start2(): this should return -2
+start2(): after send of message #23, result = -2
+start2(): sending message #24 to mailbox 7
+start2(): this should return -2
+start2(): after send of message #24, result = -2
+finish(): The simulation is now terminating.

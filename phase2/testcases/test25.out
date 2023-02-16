@@ -1,0 +1,39 @@
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+start2(): started
+
+start2(): MboxCreate returned id = 7
+
+XXp3(): started
+
+XXp3(): fork'ing XXp2 at priority 4
+
+XXp3(): fork'ing XXp2 at priority 2
+XXp2(): started
+XXp2(): priority 3, receiving message from mailbox 7
+XXp2(): started
+XXp2(): priority 4, receiving message from mailbox 7
+
+XXp3(): fork'ing XXp2 at priority 2
+XXp2(): started
+XXp2(): priority 2, receiving message from mailbox 7
+
+XXp3(): fork'ing XXp1 at priority 1
+XXp1(): started
+XXp1(): sending message #1 to mailbox 7
+XXp1(): MboxSend() rc 0
+XXp1(): sending message #2 to mailbox 7
+XXp1(): MboxSend() rc 0
+XXp1(): sending message #3 to mailbox 7
+XXp1(): MboxSend() rc 0
+XXp2(): priority 3, after receipt of message, result = 14   message = 'First message'
+XXp3(): join'd with child 9 whose status is 1
+XXp3(): join'd with child 7 whose status is 3
+XXp2(): priority 2, after receipt of message, result = 14   message = 'Third message'
+XXp2(): priority 4, after receipt of message, result = 15   message = 'Second message'
+XXp3(): join'd with child 8 whose status is 2
+XXp3(): join'd with child 6 whose status is 4
+
+start2(): joined with kid 5, status = 5
+finish(): The simulation is now terminating.

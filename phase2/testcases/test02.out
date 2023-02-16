@@ -1,0 +1,15 @@
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+start2(): started, trying to create too many mailboxes.  Exactly 3 should fail.
+start2(): MailBoxCreate returned id less than zero, id = -1
+start2(): MailBoxCreate returned id less than zero, id = -1
+start2(): MailBoxCreate returned id less than zero, id = -1
+start2(): MailBoxCreate returned id less than zero, id = -1
+start2(): MailBoxCreate returned id less than zero, id = -1
+start2(): MailBoxCreate returned id less than zero, id = -1
+start2(): MailBoxCreate returned id less than zero, id = -1
+start2(): MailBoxCreate returned id less than zero, id = -1
+start2(): MailBoxCreate returned id less than zero, id = -1
+start2(): MailBoxCreate returned id less than zero, id = -1
+finish(): The simulation is now terminating.

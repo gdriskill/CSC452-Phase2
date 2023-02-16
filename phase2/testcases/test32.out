@@ -1,0 +1,19 @@
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+start2(): started
+start2(): MboxCreate returned id = 7
+start2(): sending message to mailbox 7
+start2(): after send of message, result = 0
+
+XXp3(): sending message to mailbox 7
+XXp2(): sending message to mailbox 7
+XXp1(): sending message to mailbox 7
+
+XXp4(): Releasing MailBox 7
+XXp3(): after send of message, result = -3
+XXp2(): after send of message, result = -3
+
+XXp4(): after release of mailbox, result = 0
+XXp1(): after send of message, result = -3
+finish(): The simulation is now terminating.

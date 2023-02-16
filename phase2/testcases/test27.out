@@ -1,0 +1,25 @@
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+start2(): started, trying to create too many mailboxes...
+start2(): calling MboxRelease(7)
+start2(): calling MboxRelease(7) returned 0
+start2(): calling MboxRelease(8)
+start2(): calling MboxRelease(8) returned 0
+start2(): calling MboxRelease(9)
+start2(): calling MboxRelease(9) returned 0
+start2(): calling MboxRelease(10)
+start2(): calling MboxRelease(10) returned 0
+start2(): calling MboxRelease(11)
+start2(): calling MboxRelease(11) returned 0
+start2(): calling MboxRelease(12)
+start2(): calling MboxRelease(12) returned 0
+start2(): MailBoxCreate for i = 0 returned id = 7
+start2(): MailBoxCreate for i = 1 returned id = 8
+start2(): MailBoxCreate for i = 2 returned id = 9
+start2(): MailBoxCreate for i = 3 returned id = 10
+start2(): MailBoxCreate for i = 4 returned id = 11
+start2(): MailBoxCreate for i = 5 returned id = 12
+start2(): MailBoxCreate for i = 6 returned id less than zero, id = -1
+start2(): MailBoxCreate for i = 7 returned id less than zero, id = -1
+finish(): The simulation is now terminating.

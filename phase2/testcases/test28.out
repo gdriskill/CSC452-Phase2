@@ -1,0 +1,50 @@
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+start2(): started
+start2(): MboxCreate returned id = 7
+
+XXp1(): started
+XXp1(): receiving message #0 from mailbox 7
+XXp2a(): receive message from mailbox 7, msg_size = 20
+XXp2c(): receive message from mailbox 7, msg_size = 20
+XXp2b(): receive message from mailbox 7, msg_size = 20
+
+XXp3(): started
+XXp1(): after receive of message #0, result = -3
+XXp1(): receiving message #1 from mailbox 7
+XXp1(): after receive of message #1, result = -1
+XXp1(): receiving message #2 from mailbox 7
+XXp1(): after receive of message #2, result = -1
+XXp1(): receiving message #3 from mailbox 7
+XXp1(): after receive of message #3, result = -1
+XXp1(): receiving message #4 from mailbox 7
+XXp1(): after receive of message #4, result = -1
+XXp1(): sending message #0 to mailbox 7
+XXp1(): after send of message #0, result = -1
+XXp1(): sending message #1 to mailbox 7
+XXp1(): after send of message #1, result = -1
+XXp1(): sending message #2 to mailbox 7
+XXp1(): after send of message #2, result = -1
+XXp1(): sending message #3 to mailbox 7
+XXp1(): after send of message #3, result = -1
+XXp1(): sending message #4 to mailbox 7
+XXp1(): after send of message #4, result = -1
+
+start2(): joined with kid 5, status = 3
+XXp2a(): after receive of message result = -3
+XXp2a(): mailbox destroyed by MboxRecv() call
+
+start2(): joined with kid 6, status = 4
+XXp2c(): after receive of message result = -3
+XXp2c(): mailbox destroyed by MboxRecv() call
+
+start2(): joined with kid 8, status = 4
+XXp2b(): after receive of message result = -3
+XXp2b(): mailbox destroyed by MboxRecv() call
+
+start2(): joined with kid 7, status = 4
+XXp3(): MboxRelease returned 0
+
+start2(): joined with kid 9, status = 5
+finish(): The simulation is now terminating.

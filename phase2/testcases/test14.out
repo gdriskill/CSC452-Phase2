@@ -1,0 +1,12 @@
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+start2(): started
+start2(): calling USLOSS_DeviceOutput to enable receive interrupts, control = 2
+XXp1(): started, calling waitDevice for terminal 1
+XXp1(): after waitDevice call
+XXp1(): status = 24833
+XXp1(): receive status for terminal 1 = 1
+XXp1(): character received = a
+start2(): joined with kid 5, status = 3
+finish(): The simulation is now terminating.

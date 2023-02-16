@@ -1,0 +1,14 @@
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+start2(): at beginning, pid = 4
+start2(): fork'd child 5
+XXp1(): started, calling waitDevice for clock
+XXp1(): after waitDevice call
+XXp1(): About to print status from clock Handler:
+XXp1(): status = 90024   -- Should be near 100k, but does not have to be an exact match.  Is often 90k or so on Russ's computer.
+XXp1(): after waitDevice call
+XXp1(): About to print status from clock Handler:
+XXp1(): status = 190024   -- Should be roughly 100k more than the previous report.
+start2(): joined with kid 5, status = 3
+finish(): The simulation is now terminating.

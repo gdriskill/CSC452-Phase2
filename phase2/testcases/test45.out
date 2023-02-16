@@ -1,0 +1,6 @@
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+start2(): started, trying to create a single mailbox with more than MAXSLOTS slots.  Should fail.
+start2(): MboxCreate returned id less than zero (as expected), id = -1
+finish(): The simulation is now terminating.

@@ -1,0 +1,7 @@
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+start2(): started, trying to exceed systemwide mailslots...
+MboxSend_helper: Could not send, the system is out of mailbox slots.
+No slots available: mailbox 45 and slot 25
+finish(): The simulation is now terminating.

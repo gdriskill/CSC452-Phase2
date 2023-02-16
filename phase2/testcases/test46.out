@@ -1,0 +1,33 @@
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+start2(): started.  Creating mailbox.
+
+start2(): calling fork1 for Child1a
+start2(): calling fork1 for Child1b
+start2(): calling fork1 for Child1c
+start2(): calling fork1 for Child2
+
+start2(): Parent done forking.
+
+Child1a(): starting, blocking on a mailbox receive
+
+Child1b(): starting, blocking on a mailbox receive
+
+Child1c(): starting, blocking on a mailbox receive
+
+Child2(): starting, releasing mailbox
+
+Child1a(): result = -3
+Child1b(): result = -3
+Process 6 joined with status: 1
+
+Process 5 joined with status: 1
+
+Child1c(): result = -3
+Process 7 joined with status: 1
+
+Child2(): done
+Process 8 joined with status: 9
+
+finish(): The simulation is now terminating.

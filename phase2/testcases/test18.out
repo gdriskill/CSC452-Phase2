@@ -1,0 +1,50 @@
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+start2(): started, trying to exceed systemwide mailslots...
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 0 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 1 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 2 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 3 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 4 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 5 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 6 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 7 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 8 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 9 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 10 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 11 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 12 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 13 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 14 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 15 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 16 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 17 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 18 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 19 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 20 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 21 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 22 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 23 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 24 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 25 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 26 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 27 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 28 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 29 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 30 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 31 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 32 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 33 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 34 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 35 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 36 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 37 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 38 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 39 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 40 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 41 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 42 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 43 and slot 55
+Mailbox has no more slots available, and so CondSend() returned -2: mailbox 44 and slot 55
+finish(): The simulation is now terminating.

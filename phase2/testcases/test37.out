@@ -1,0 +1,35 @@
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+start2(): started, creating with size of slot too big
+start2(): MailBoxCreate returned id = -1
+start2(): passed...
+
+start2(): creating with size of slot = -1
+start2(): MailBoxCreate returned id = -1
+start2(): passed...
+
+start2(): creating with number of slots = -1
+start2(): MailBoxCreate returned id = -1
+start2(): passed...
+
+start2(): creating with number of slots = 2 and size of slots = 0
+start2(): MailBoxCreate returned id = 7
+start2(): passed...
+
+start2(): sending message to mailbox 7
+start2(): after send of message, result = 0
+start2(): passed...
+
+start2(): sending message to mailbox 7
+start2(): after send of message, result = 0
+start2(): passed...
+
+start2(): attempting to receive message from mailbox 7
+start2(): after receive of message, result = 0
+start2(): passed...
+
+start2(): attempting to receive message from mailbox 7
+start2(): after receive of message, result = 0
+start2(): passed...
+finish(): The simulation is now terminating.

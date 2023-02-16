@@ -1,0 +1,7 @@
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+start2(): putting itself into user mode
+start2(): calling USLOSS_Syscall executing syscall MAXSYSCALL, this should halt
+syscallHandler(): Invalid syscall number 50
+finish(): The simulation is now terminating.

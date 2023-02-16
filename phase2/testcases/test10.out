@@ -1,0 +1,41 @@
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+start2(): started
+start2(): MboxCreate returned id = 7
+XXp1(): started
+XXp1(): sending message #0 to mailbox 7
+XXp1(): after send of message #0, result = 0
+XXp1(): sending message #1 to mailbox 7
+XXp1(): after send of message #1, result = 0
+XXp1(): sending message #2 to mailbox 7
+XXp1(): after send of message #2, result = 0
+XXp1(): sending message #3 to mailbox 7
+XXp1(): after send of message #3, result = 0
+XXp1(): sending message #4 to mailbox 7
+XXp1(): after send of message #4, result = 0
+start2(): joined with kid 5, status = 3
+XXp2a(): conditionally sending message 'hello from XXp2a' to mailbox 7, msg_size = 17
+XXp2a(): after conditional send of message 'hello from XXp2a', result = -2
+start2(): joined with kid 6, status = 4
+XXp2b(): sending message 'hello from XXp2b' to mailbox 7, msg_size = 17
+XXp2c(): conditionally sending message 'hello from XXp2c' to mailbox 7, msg_size = 17
+XXp2c(): after conditional send of message 'hello from XXp2c', result = -2
+start2(): joined with kid 8, status = 4
+XXp3(): started
+XXp3(): receiving message #0 from mailbox 7
+XXp2b(): after send of message 'hello from XXp2b', result = 0
+start2(): joined with kid 7, status = 4
+XXp3(): after receipt of message #0, result = 16   message = 'hello there, #0'
+XXp3(): receiving message #1 from mailbox 7
+XXp3(): after receipt of message #1, result = 16   message = 'hello there, #1'
+XXp3(): receiving message #2 from mailbox 7
+XXp3(): after receipt of message #2, result = 16   message = 'hello there, #2'
+XXp3(): receiving message #3 from mailbox 7
+XXp3(): after receipt of message #3, result = 16   message = 'hello there, #3'
+XXp3(): receiving message #4 from mailbox 7
+XXp3(): after receipt of message #4, result = 16   message = 'hello there, #4'
+XXp3(): receiving message #5 from mailbox 7
+XXp3(): after receipt of message #5, result = 17   message = 'hello from XXp2b'
+start2(): joined with kid 9, status = 5
+finish(): The simulation is now terminating.
