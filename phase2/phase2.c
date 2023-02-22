@@ -1,6 +1,8 @@
 #include <stdlib.h>
+#include <stdbool.h>
 #include <usloss.h>
 #include <usyscall.h>
+#include <string.h>
 #include "phase1.h"
 #include "phase2.h"
 
@@ -8,12 +10,26 @@
 #define MAILBOX_INACTIVE -1
 #define MAILBOX_RELEASED -2
 
-#define MAILSLOT_ACTIVE 0
-#define MAILSLOT_INACTIVE -1
+#define MAILBOX_CLOCK     0
+#define MAILBOX_DISK1     1
+#define MAILBOX_DISK2     2
+#define MAILBOX_TERM1     3
+#define MAILBOX_TERM2     4
+#define MAILBOX_TERM3     5
+#define MAILBOX_TERM4     6
+
+#define MAILSLOT_INACTIVE     -1
+#define MAILSLOT_ACTIVE        0
+#define MAILSLOT_MSG_UNCLAIMED 1
+#define MAILSLOT_MSG_CLAIMED   2
 
 #define PCB_INACTIVE -1
-#define PCB_CONSUMER 1
-#define PCB_PRODUCER 2
+#define PCB_CONSUMER  1
+#define PCB_PRODUCER  2
+
+#define UNBLOCKED                   1
+#define BLOCK_WAITING_ON_CONSUMER  14
+#define BLOCK_WAITING_ON_PRODUCER  15
 
 #define DEBUG 1
 #define TRACE 1
@@ -29,8 +45,9 @@ typedef struct MailSlot {
 	int id;
 	void* message;
 	int msg_size;
-        struct MailSlot* next_message;
-        int status;
+	struct MailSlot* next_message;
+	int status;
+	PCB* claimant;
 } MailSlot;
 
 typedef struct MailBox {
@@ -48,14 +65,20 @@ static MailBox mailboxes[MAXMBOX];
 static MailSlot mailSlots[MAXSLOTS];
 PCB shadowTable[MAXPROC];
 
+void join_consumer_queue(int mbox_id, PCB* consumer);
+void leave_consumer_queue(int mbox_id, PCB* consumer);
+void join_producer_queue(int mbox_id, PCB* producer);
+void leave_producer_queue(int mbox_id, PCB* producer);
+
 void (*systemCallVec[MAXSYSCALLS])(USLOSS_Sysargs *args);
 int get_mode();
 int disable_interrupts();
 void restore_interrupts(int old_state);
 void enable_interrupts();
 
+// Helper Funcs
 /////////////////////////////////////////////////////////////
-void  nullsys(USLOSS_Sysargs *args){
+void nullsys(USLOSS_Sysargs *args){
 	USLOSS_Console("ERROR: Syscall\n");
 	USLOSS_Halt(1);
 }
@@ -70,14 +93,97 @@ int get_next_mailbox_id(){
 }
 
 int get_next_mailslot_id(){
-        for(int i=0; i<MAXSLOTS; i++){
-                if(mailSlots[i].status == MAILBOX_INACTIVE){
-                        return i;
-                }
-        }
-        return -1;
+	for(int i=0; i<MAXSLOTS; i++){
+		if(mailSlots[i].status == MAILBOX_INACTIVE){
+			return i;
+		}
+	}
+	return -1;
 }
 
+void join_consumer_queue(int mbox_id, PCB* consumer) {
+	if (TRACE)
+		USLOSS_Console("TRACE: In join consumer queue\n");
+	if (DEBUG)
+		USLOSS_Console("DEBUG: Mbox id: %d, pid: %d\n", mbox_id, consumer->id);
+
+	MailBox* mbox_ptr = &mailboxes[mbox_id];
+	if (mbox_ptr->consumers == NULL) {
+		mbox_ptr->consumers = consumer;
+	} else {
+		PCB* last_consumer = mbox_ptr->consumers;
+		while (last_consumer->next_consumer != NULL) {
+			last_consumer = last_consumer->next_consumer;
+		}
+		last_consumer->next_consumer = consumer;
+	}
+}
+
+void leave_consumer_queue(int mbox_id, PCB* consumer) {
+	if (TRACE)
+		USLOSS_Console("TRACE: In leave consumer queue\n");
+	if (DEBUG)
+		USLOSS_Console("DEBUG: Mbox id: %d, pid: %d\n", mbox_id, consumer->id);
+
+	MailBox* mbox_ptr = &mailboxes[mbox_id];
+	if (mbox_ptr->consumers == consumer) {
+		mbox_ptr->consumers = NULL;
+	} else {
+		PCB* prev_consumer = mbox_ptr->consumers;
+		while (prev_consumer->next_consumer != consumer) {
+			prev_consumer = prev_consumer->next_consumer;
+			if (prev_consumer == NULL) {
+				USLOSS_Console("ERROR: consumer not found in queue. Halting\n");
+				USLOSS_Halt(1);
+			}
+		}
+		prev_consumer->next_consumer = consumer->next_consumer;
+	}
+}
+
+void join_producer_queue(int mbox_id, PCB* producer) {
+	if (TRACE)
+		USLOSS_Console("TRACE: In join producer queue\n");
+	if (DEBUG)
+		USLOSS_Console("DEBUG: Mbox id: %d, pid: %d\n", mbox_id, producer->id);
+
+	MailBox* mbox_ptr = &mailboxes[mbox_id];
+	if (mbox_ptr->producers == NULL) {
+		mbox_ptr->producers = producer;
+	} else {
+		PCB* last_producer = mbox_ptr->producers;
+		while (last_producer->next_producer != NULL) {
+			last_producer = last_producer->next_producer;
+		}
+		last_producer->next_producer = producer;
+	}
+}
+
+void leave_producer_queue(int mbox_id, PCB* producer) {
+	if (TRACE)
+		USLOSS_Console("TRACE: In leave producer queue\n");
+	if (DEBUG)
+		USLOSS_Console("DEBUG: Mbox id: %d, pid: %d\n", mbox_id, producer->id);
+
+	MailBox* mbox_ptr = &mailboxes[mbox_id];
+	if (mbox_ptr->producers == producer) {
+		mbox_ptr->producers = NULL;
+	} else {
+		PCB* prev_producer = mbox_ptr->producers;
+		while (prev_producer->next_producer != producer) {
+			prev_producer = prev_producer->next_producer;
+			if (prev_producer == NULL) {
+				USLOSS_Console("ERROR: producer not found in queue. Halting\n");
+				USLOSS_Halt(1);
+			}
+		}
+		prev_producer->next_producer = producer->next_producer;
+	}
+}
+
+
+// Core Funcs
+/////////////////////////////////////////////////////////////
 /* Similar to phase1_init. Used to initialize any data structures.
  * Do not fork1 from here
  * 
@@ -89,7 +195,7 @@ int get_next_mailslot_id(){
 void phase2_init(void) {
 	for(int i=0; i<MAXMBOX; i++){
 		MailBox mb;
-		mb.status = MAILBOX_INACTIVE;
+		mb.status = i <= MAILBOX_TERM4 ? MAILBOX_ACTIVE : MAILBOX_INACTIVE;
 		mailboxes[i] = mb;
 	}
 	for(int j=0; j<MAXSLOTS; j++){
@@ -131,13 +237,20 @@ void phase2_start_service_processes(void) {}
  *   >= 0: ID of allocated mailbox
  */
 int MboxCreate(int slots, int slot_size) {
+	if (TRACE)
+		USLOSS_Console("TRACE: In MboxCreate\n");
+	if (DEBUG)
+		USLOSS_Console("DEBUG: Slots: %d, Slot size: %d\n", slots, slot_size);
+
 	if(slots<0 || slot_size<0 || slots>MAXSLOTS || slot_size>MAX_MESSAGE){
+		USLOSS_Console("ERROR: Invalid parameters\n");
 		return -1;
 	}
 	int id = get_next_mailbox_id();
 
 	if(id==-1){
 		// Mailbox array is full
+		//USLOSS_Console("ERROR: Too many mailboxes\n");
 		return -1;
 	}
 	MailBox mb;
@@ -145,10 +258,15 @@ int MboxCreate(int slots, int slot_size) {
 	mb.status = MAILBOX_ACTIVE;
 	mb.max_slots = slots;
 	mb.slot_size = slot_size;
+	mb.slots_used = 0;
 	mb.head = NULL;
 	mb.consumers = NULL;
 	mb.producers = NULL;
 	mailboxes[id] = mb;
+
+	if (DEBUG)
+		USLOSS_Console("DEBUG: Mailbox created for id:%d\n", id);
+
 	return id;
 }
 
@@ -164,6 +282,9 @@ int MboxCreate(int slots, int slot_size) {
  *   0: Success
  */
 int MboxRelease(int mbox_id) {
+	if (TRACE)
+		USLOSS_Console("TRACE: In MboxRelease (id:%d)\n", mbox_id);
+
 	int old_state = disable_interrupts();	
 	if(mailboxes[mbox_id].status == MAILBOX_INACTIVE){
 		restore_interrupts(old_state);
@@ -176,24 +297,34 @@ int MboxRelease(int mbox_id) {
 		slot->status = MAILSLOT_INACTIVE;
 		slot = slot->next_message;
 	}
+	
 	restore_interrupts(old_state);
 	PCB* consumer = mbox.consumers;
-	while(consumer!=NULL){
+
+	while (consumer!=NULL) {
+		if (DEBUG)
+			USLOSS_Console("DEBUG: Unblocking consumer (%d)\n", consumer->id);
 		unblockProc(consumer->id);
 		consumer = consumer->next_consumer;
 	}
+	
 	PCB* producer = mbox.producers;
-        while(producer!=NULL){
-                unblockProc(producer->id);
+	while (producer!=NULL) {
+		if (DEBUG)
+			USLOSS_Console("DEBUG: Unblocking producer (%d)\n", producer->id);
+		unblockProc(producer->id);
 		producer = producer->next_producer;
-        }
+	}
+
 	mbox.status = MAILBOX_INACTIVE;
+	mbox.slots_used = 0;
+	restore_interrupts(old_state);
 	return 0;
 }
 
 
 /* Sends a message through a mailbox. If delivered directly, do not block.
- * If no consumers queued, block until message can be delivered 
+ * If no consumers queued AND no space for message, block until message can be delivered 
  * 
  * May Block: Yes
  * May Context Switch: Yes
@@ -208,6 +339,11 @@ int MboxRelease(int mbox_id) {
  *   0: Success
  */
 int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
+	if (TRACE)
+		USLOSS_Console("TRACE: In MboxSend (id:%d) \n", mbox_id);
+
+	int old_state = disable_interrupts();
+
 	// Log process that is sending
 	int pid = getpid();
 	PCB* process_ptr = &shadowTable[pid%MAXPROC];;
@@ -218,61 +354,75 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
 		process_ptr->next_producer = NULL;
 	}
  
-	MailBox mbox = mailboxes[mbox_id];
-	if(mbox.status == MAILBOX_RELEASED){
+	MailBox* mbox_ptr = &mailboxes[mbox_id];
+	if(mbox_ptr->status == MAILBOX_RELEASED){
 		return -3;	
 	}
-	if(mbox.status == MAILBOX_INACTIVE || msg_size>MAX_MESSAGE || msg_size<0){
+	if(mbox_ptr->status == MAILBOX_INACTIVE || msg_size>MAX_MESSAGE || msg_size<0){
 		return -1;
 	}
+
+	// Joining the queue
+	join_producer_queue(mbox_id, process_ptr);
+	
+	// Initializing the slot
 	MailSlot slot;
 	int id = get_next_mailslot_id();
 	if(id==-1){
-		return  -2;
+		return -2;
 	}
 	slot.id = id;
 	slot.msg_size = msg_size;
 	slot.message = msg_ptr;
-	mailSlots[id] = slot;
+	slot.claimant = NULL;
+	mailSlots[id%MAXSLOTS] = slot;
 
-	// Check if mailbox is full. If so, block process
-	if (mbox.slots_used == mbox.max_slots) {
-		if (mbox.producers == NULL) {
-			mbox.producers = process_ptr;
-		} else {
-			PCB* cur = mbox.producers;
-			while (cur->next_producer != NULL) {
-				cur = cur->next_producer;
-			}
-			cur->next_producer = process_ptr;	
-		}
-		blockMe(11);	
+	// Check if mailbox is full. If so, place into the producer queue and block process
+	if (mbox_ptr->slots_used == mbox_ptr->max_slots) {
+		if (DEBUG)
+			USLOSS_Console("DEBUG: Blocking, waiting on consumer (pid:%d)\n", pid);
+
+		process_ptr->status = BLOCK_WAITING_ON_CONSUMER;
+		blockMe(BLOCK_WAITING_ON_CONSUMER);	
 	}
-
-	if (mbox.head == NULL) {
-		mbox.head = &mailSlots[id];
+	
+	// Adding message to slot 
+	if (mbox_ptr->head == NULL) {
+		mbox_ptr->head = &mailSlots[id];
 	} else {
-		MailSlot* slot_ptr = mbox.head;
+		MailSlot* slot_ptr = mbox_ptr->head;
 		while (slot_ptr->next_message != NULL) {
 			slot_ptr = slot_ptr->next_message;
 		}
 		slot_ptr->next_message = &mailSlots[id];
 	}
+	mbox_ptr->slots_used++;
+	// No need for the producer to be on queue now
+	leave_producer_queue(mbox_id, process_ptr);
 	
-	// ONCE A MESSAGE HAS BEEN CLAIMED, NOTE IT IN A FUTURE FIELD ON MAILSLOT
-
 	// Check if there is a consumer ready
-	if (mbox.consumers != NULL) {
-		PCB* consumer = mbox.consumers;
-		mbox.consumers = consumer->next_consumer;
-		unblockProc(consumer->id);
+	PCB* consumer = mbox_ptr->consumers;
+	if (consumer != NULL) {
+		mailSlots[id].status = MAILSLOT_MSG_CLAIMED; 
+		mailSlots[id].claimant = consumer;
+		if (consumer->status == BLOCK_WAITING_ON_PRODUCER) {
+			if (DEBUG)
+				USLOSS_Console("DEBUG: Consumer waiting. Unblocking (%d)\n", consumer->id);
+
+			consumer->status = PCB_CONSUMER;
+			unblockProc(consumer->id);	
+		}
+	} else {
+		mailSlots[id].status = MAILSLOT_MSG_UNCLAIMED;
 	}
 
+	restore_interrupts(old_state);
 	return 0;
 }
 
-/* Waits to receive a message through a mailbox.
- * If message, return it. If not, block until a message arrives
+/* Receives the message. 
+ * If a message has been claimed and the pid matches, success. 
+ * If a message has not been claimed and a process comes in, success. Otherwise, block
  * 
  * May Block: Yes
  * May Context Switch: Yes
@@ -286,7 +436,101 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
  *   >= 0: The size of the message received
  */
 int MboxRecv(int mbox_id, void *msg_ptr, int msg_max_size) {
-	return -1;
+	if (TRACE)
+		USLOSS_Console("TRACE: In MboxRecv (id:%d)\n", mbox_id);
+
+	MailBox* mbox_ptr = &mailboxes[mbox_id%MAXMBOX];
+	if (mbox_ptr->status == MAILBOX_RELEASED) {
+		USLOSS_Console("ERROR: Mailbox (%d) has already been released\n", mbox_id);
+		return -3;
+	}
+	if (mbox_ptr->status == MAILBOX_INACTIVE) {
+		USLOSS_Console("ERROR: Mailbox (%d) is inactive\n", mbox_id);
+		return -1;
+	}
+	if (msg_ptr == NULL || msg_max_size < 0) {
+		USLOSS_Console("ERROR: Invalid parameters\n");
+		return -1;
+	}
+
+	int old_state = disable_interrupts();
+	// Log process that is receiving
+	int pid = getpid();
+	PCB* process_ptr = &shadowTable[pid%MAXPROC];
+	if (shadowTable[pid%MAXPROC].status == PCB_INACTIVE) {
+		process_ptr->id = pid;
+		process_ptr->status = PCB_CONSUMER;
+		process_ptr->next_consumer = NULL;
+		process_ptr->next_producer = NULL;
+	}
+
+	// Queue it onto the consumer queue
+	join_consumer_queue(mbox_id, process_ptr);
+	
+	// Checking if slot exists. If not, block
+	if (mbox_ptr->head == NULL) {
+		if (DEBUG)
+			USLOSS_Console("DEBUG: No mail slot yet. Blocking (pid:%d)\n", pid);
+
+		process_ptr->status = BLOCK_WAITING_ON_PRODUCER;
+		blockMe(BLOCK_WAITING_ON_PRODUCER);
+	}	
+	MailSlot* slot_ptr = mbox_ptr->head;
+	
+	// Check for receiver
+	// If unmarked, then first consumer gets it
+	// If reserved, then check for the consumer in the queue
+	// If no messages for the calling receiver, block and try again when unblocked
+	bool msg_received = false;
+	PCB* consumer = mbox_ptr->consumers;
+	while (!msg_received) {
+		if (slot_ptr->status == MAILSLOT_MSG_UNCLAIMED) {
+			slot_ptr->claimant = consumer;
+			slot_ptr->status = MAILSLOT_MSG_CLAIMED;
+			msg_received = true;
+		} else {
+			while (consumer != NULL && !msg_received) {
+				if (slot_ptr->claimant == consumer) {
+					msg_received = true;
+				} else {
+					consumer = consumer->next_consumer;
+				}
+			}
+		} 
+
+		// No open mail was found
+		if (!msg_received) {
+			if (DEBUG)
+				USLOSS_Console("DEBUG: No message, blocking / waiting on producer (pid:%d)\n", pid);
+ 
+			process_ptr->status = BLOCK_WAITING_ON_PRODUCER;
+			blockMe(BLOCK_WAITING_ON_PRODUCER);
+		}
+		consumer = mbox_ptr->consumers;
+	}
+	// Consume the message by copying it onto the provided pointer
+	int msg_size = msg_max_size < slot_ptr->msg_size ? 
+		msg_max_size : slot_ptr->msg_size;
+	memcpy(msg_ptr, slot_ptr->message, msg_size);
+	mbox_ptr->head = slot_ptr->next_message;
+	slot_ptr->status = MAILSLOT_INACTIVE;
+	mbox_ptr->slots_used--;
+	// Take consumer off the queue
+	leave_consumer_queue(mbox_id, process_ptr);
+	// Removing consumer from shadowTable
+	shadowTable[pid%MAXPROC].status = PCB_INACTIVE;		
+
+	// Unblocking the producer, if it's blocked
+	PCB* producer_ptr = mbox_ptr->producers;
+	if (producer_ptr != NULL) {
+		mbox_ptr->producers = producer_ptr->next_producer;
+		leave_producer_queue(mbox_id, producer_ptr);
+		
+		producer_ptr->status = PCB_PRODUCER;
+		unblockProc(producer_ptr->id);	
+	}
+	restore_interrupts(old_state);
+	return msg_size;
 }
 
 /* Sends a message through a mailbox. 
@@ -392,7 +636,7 @@ int disable_interrupts(){
 	int old_state = USLOSS_PSR_CURRENT_INT;
 	int result = USLOSS_PsrSet(USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_INT);
 	if(result!=USLOSS_DEV_OK){
-                USLOSS_Console("ERROR: Could not set PSR to disable interrupts.\n");	
+		USLOSS_Console("ERROR: Could not set PSR to disable interrupts.\n");	
 	}
 	return old_state;
 }
@@ -410,7 +654,7 @@ void restore_interrupts(int old_state){
 		result = USLOSS_PsrSet(USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_INT);
 	}
 	if(result!=USLOSS_DEV_OK){
-                USLOSS_Console("ERROR: Could not set PSR to restore interrupts.\n");
+		USLOSS_Console("ERROR: Could not set PSR to restore interrupts.\n");
 	}
 }
 
