@@ -31,8 +31,8 @@
 #define BLOCK_WAITING_ON_CONSUMER  14
 #define BLOCK_WAITING_ON_PRODUCER  15
 
-#define DEBUG 1
-#define TRACE 1
+#define DEBUG 0
+#define TRACE 0
 
 typedef struct PCB {
 	int id;
@@ -290,16 +290,16 @@ int MboxRelease(int mbox_id) {
 		restore_interrupts(old_state);
 		return -1;	
 	}
-	MailBox mbox = mailboxes[mbox_id];
-	mbox.status = MAILBOX_RELEASED;
-	MailSlot* slot = mbox.head;
+	MailBox* mbox_ptr = &mailboxes[mbox_id];
+	mbox_ptr->status = MAILBOX_RELEASED;
+	MailSlot* slot = mbox_ptr->head;
 	while(slot!=NULL){
 		slot->status = MAILSLOT_INACTIVE;
 		slot = slot->next_message;
 	}
 	
 	restore_interrupts(old_state);
-	PCB* consumer = mbox.consumers;
+	PCB* consumer = mbox_ptr->consumers;
 
 	while (consumer!=NULL) {
 		if (DEBUG)
@@ -308,7 +308,7 @@ int MboxRelease(int mbox_id) {
 		consumer = consumer->next_consumer;
 	}
 	
-	PCB* producer = mbox.producers;
+	PCB* producer = mbox_ptr->producers;
 	while (producer!=NULL) {
 		if (DEBUG)
 			USLOSS_Console("DEBUG: Unblocking producer (%d)\n", producer->id);
@@ -316,8 +316,8 @@ int MboxRelease(int mbox_id) {
 		producer = producer->next_producer;
 	}
 
-	mbox.status = MAILBOX_INACTIVE;
-	mbox.slots_used = 0;
+	mbox_ptr->status = MAILBOX_INACTIVE;
+	mbox_ptr->slots_used = 0;
 	restore_interrupts(old_state);
 	return 0;
 }
@@ -356,9 +356,11 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
  
 	MailBox* mbox_ptr = &mailboxes[mbox_id];
 	if(mbox_ptr->status == MAILBOX_RELEASED){
+		restore_interrupts(old_state);
 		return -3;	
 	}
 	if(mbox_ptr->status == MAILBOX_INACTIVE || msg_size>MAX_MESSAGE || msg_size<0){
+		restore_interrupts(old_state);
 		return -1;
 	}
 
@@ -369,6 +371,7 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
 	MailSlot slot;
 	int id = get_next_mailslot_id();
 	if(id==-1){
+		restore_interrupts(old_state);
 		return -2;
 	}
 	slot.id = id;
@@ -385,7 +388,10 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
 		process_ptr->status = BLOCK_WAITING_ON_CONSUMER;
 		blockMe(BLOCK_WAITING_ON_CONSUMER);	
 	}
-	
+	if(mbox_ptr->status == MAILBOX_RELEASED){
+                restore_interrupts(old_state);
+		return -3;
+        }	
 	// Adding message to slot 
 	if (mbox_ptr->head == NULL) {
 		mbox_ptr->head = &mailSlots[id];
