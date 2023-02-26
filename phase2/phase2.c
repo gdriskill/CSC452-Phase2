@@ -32,7 +32,7 @@
 #define BLOCK_WAITING_ON_PRODUCER  15
 
 #define DEBUG 0
-#define TRACE 0
+#define TRACE 0 
 
 typedef struct PCB {
 	int id;
@@ -43,7 +43,8 @@ typedef struct PCB {
 
 typedef struct MailSlot {
 	int id;
-	void* message;
+	//void* message;
+	char message [MAX_MESSAGE];
 	int msg_size;
 	struct MailSlot* next_message;
 	int status;
@@ -146,7 +147,6 @@ void join_producer_queue(int mbox_id, PCB* producer) {
 		USLOSS_Console("TRACE: In join producer queue\n");
 	if (DEBUG)
 		USLOSS_Console("DEBUG: Mbox id: %d, pid: %d\n", mbox_id, producer->id);
-
 	MailBox* mbox_ptr = &mailboxes[mbox_id];
 	if (mbox_ptr->producers == NULL) {
 		mbox_ptr->producers = producer;
@@ -195,9 +195,14 @@ void leave_producer_queue(int mbox_id, PCB* producer) {
 void phase2_init(void) {
 	for(int i=0; i<MAXMBOX; i++){
 		MailBox mb;
-		mb.status = i <= MAILBOX_TERM4 ? MAILBOX_ACTIVE : MAILBOX_INACTIVE;
+		//mb.status = i <= MAILBOX_TERM4 ? MAILBOX_ACTIVE : MAILBOX_INACTIVE;
+		mb.status = MAILBOX_INACTIVE;
 		mailboxes[i] = mb;
 	}
+	// Create mailboxes for interrupts
+	for(int m=0; m<7; m++){
+		MboxCreate(1, sizeof(int));
+        }
 	for(int j=0; j<MAXSLOTS; j++){
 		MailSlot ms;
 		ms.status = MAILSLOT_INACTIVE;
@@ -322,6 +327,15 @@ int MboxRelease(int mbox_id) {
 	return 0;
 }
 
+void print_mbox(int mbox_id){
+	USLOSS_Console("MAILBOX %d\n", mbox_id);
+	MailBox* mbox_ptr = &mailboxes[mbox_id];
+	MailSlot* mslot_ptr = mbox_ptr->head;
+	while(mslot_ptr!=NULL){
+		USLOSS_Console("message ptr %p id %d is %s\n",mslot_ptr->message,  mslot_ptr->id, mslot_ptr->message);
+		mslot_ptr = mslot_ptr->next_message;
+	}	
+}
 
 /* Sends a message through a mailbox. If delivered directly, do not block.
  * If no consumers queued AND no space for message, block until message can be delivered 
@@ -341,9 +355,8 @@ int MboxRelease(int mbox_id) {
 int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
 	if (TRACE)
 		USLOSS_Console("TRACE: In MboxSend (id:%d) \n", mbox_id);
-
 	int old_state = disable_interrupts();
-
+	
 	// Log process that is sending
 	int pid = getpid();
 	PCB* process_ptr = &shadowTable[pid%MAXPROC];;
@@ -365,8 +378,7 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
 	}
 
 	// Joining the queue
-	join_producer_queue(mbox_id, process_ptr);
-	
+	//join_producer_queue(mbox_id, process_ptr);
 	// Initializing the slot
 	MailSlot slot;
 	int id = get_next_mailslot_id();
@@ -376,22 +388,23 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
 	}
 	slot.id = id;
 	slot.msg_size = msg_size;
-	slot.message = msg_ptr;
+	//slot.message = msg_ptr;
+	memcpy(slot.message, msg_ptr, msg_size);
 	slot.claimant = NULL;
 	mailSlots[id%MAXSLOTS] = slot;
-
 	// Check if mailbox is full. If so, place into the producer queue and block process
 	if (mbox_ptr->slots_used == mbox_ptr->max_slots) {
 		if (DEBUG)
 			USLOSS_Console("DEBUG: Blocking, waiting on consumer (pid:%d)\n", pid);
-
+		
 		process_ptr->status = BLOCK_WAITING_ON_CONSUMER;
+		join_producer_queue(mbox_id, process_ptr);
 		blockMe(BLOCK_WAITING_ON_CONSUMER);	
 	}
-	if(mbox_ptr->status == MAILBOX_RELEASED){
+	if(mbox_ptr->status != MAILBOX_ACTIVE){
                 restore_interrupts(old_state);
 		return -3;
-        }	
+        }
 	// Adding message to slot 
 	if (mbox_ptr->head == NULL) {
 		mbox_ptr->head = &mailSlots[id];
@@ -404,7 +417,7 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
 	}
 	mbox_ptr->slots_used++;
 	// No need for the producer to be on queue now
-	leave_producer_queue(mbox_id, process_ptr);
+	//leave_producer_queue(mbox_id, process_ptr);
 	
 	// Check if there is a consumer ready
 	PCB* consumer = mbox_ptr->consumers;
@@ -416,6 +429,7 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
 				USLOSS_Console("DEBUG: Consumer waiting. Unblocking (%d)\n", consumer->id);
 
 			consumer->status = PCB_CONSUMER;
+			leave_consumer_queue(mbox_id, consumer);
 			unblockProc(consumer->id);	
 		}
 	} else {
@@ -471,7 +485,7 @@ int MboxRecv(int mbox_id, void *msg_ptr, int msg_max_size) {
 	}
 
 	// Queue it onto the consumer queue
-	join_consumer_queue(mbox_id, process_ptr);
+	//join_consumer_queue(mbox_id, process_ptr);
 	
 	// Checking if slot exists. If not, block
 	if (mbox_ptr->head == NULL) {
@@ -479,6 +493,7 @@ int MboxRecv(int mbox_id, void *msg_ptr, int msg_max_size) {
 			USLOSS_Console("DEBUG: No mail slot yet. Blocking (pid:%d)\n", pid);
 
 		process_ptr->status = BLOCK_WAITING_ON_PRODUCER;
+		join_consumer_queue(mbox_id, process_ptr);
 		blockMe(BLOCK_WAITING_ON_PRODUCER);
 	}	
 	MailSlot* slot_ptr = mbox_ptr->head;
@@ -510,6 +525,7 @@ int MboxRecv(int mbox_id, void *msg_ptr, int msg_max_size) {
 				USLOSS_Console("DEBUG: No message, blocking / waiting on producer (pid:%d)\n", pid);
  
 			process_ptr->status = BLOCK_WAITING_ON_PRODUCER;
+			join_consumer_queue(mbox_id, process_ptr);
 			blockMe(BLOCK_WAITING_ON_PRODUCER);
 		}
 		consumer = mbox_ptr->consumers;
@@ -522,16 +538,15 @@ int MboxRecv(int mbox_id, void *msg_ptr, int msg_max_size) {
 	slot_ptr->status = MAILSLOT_INACTIVE;
 	mbox_ptr->slots_used--;
 	// Take consumer off the queue
-	leave_consumer_queue(mbox_id, process_ptr);
+	//leave_consumer_queue(mbox_id, process_ptr);
 	// Removing consumer from shadowTable
 	shadowTable[pid%MAXPROC].status = PCB_INACTIVE;		
-
 	// Unblocking the producer, if it's blocked
 	PCB* producer_ptr = mbox_ptr->producers;
 	if (producer_ptr != NULL) {
-		mbox_ptr->producers = producer_ptr->next_producer;
 		leave_producer_queue(mbox_id, producer_ptr);
-		
+		mbox_ptr->producers = producer_ptr->next_producer;
+		//leave_producer_queue(mbox_id, producer_ptr);
 		producer_ptr->status = PCB_PRODUCER;
 		unblockProc(producer_ptr->id);	
 	}
