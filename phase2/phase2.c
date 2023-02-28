@@ -71,6 +71,7 @@ static MailBox mailboxes[MAXMBOX];
 static MailSlot mailSlots[MAXSLOTS];
 PCB shadowTable[MAXPROC];
 int last_clock_send;
+int blocked_waitDevice;
 
 void join_consumer_queue(int mbox_id, PCB* consumer);
 void leave_consumer_queue(int mbox_id, PCB* consumer);
@@ -226,7 +227,7 @@ void phase2_init(void) {
 		systemCallVec[l] = nullsys;	
 	}
 	last_clock_send = currentTime();
-
+	blocked_waitDevice = 0;
 }
 
 /* Called by Phase1 init, once processes are running but before the testcase begins.
@@ -720,7 +721,9 @@ void waitDevice(int type, int unit, int *status) {
 		USLOSS_Console("ERROR: Invalid device type\n");
 		USLOSS_Halt(1);	
 	}
+	blocked_waitDevice++;
 	MboxRecv(mbox_id, status, sizeof(int));
+	blocked_waitDevice--;
 	restore_interrupts(old_state);
 }
 
@@ -746,7 +749,10 @@ void wakeupByDevice(int type, int unit, int status) {}
  *   >= 0: Some processes are currently blocked
  */
 int phase2_check_io(void) {
-	return -1;
+	if(blocked_waitDevice>0){
+		return 1;
+	}
+	return 0;
 }
 
 /* Clock interrupt handler from Phase1
