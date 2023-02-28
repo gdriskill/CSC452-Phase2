@@ -83,6 +83,8 @@ int get_mode();
 int disable_interrupts();
 void restore_interrupts(int old_state);
 void enable_interrupts();
+void disk_handler(int type, void* unit);
+void term_handler(int type, void* unit);
 
 int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail);
 int Recv(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail);
@@ -228,6 +230,8 @@ void phase2_init(void) {
 	}
 	last_clock_send = currentTime();
 	blocked_waitDevice = 0;
+	USLOSS_IntVec[USLOSS_DISK_INT] = disk_handler;
+	USLOSS_IntVec[USLOSS_TERM_INT] = term_handler;
 }
 
 /* Called by Phase1 init, once processes are running but before the testcase begins.
@@ -772,6 +776,22 @@ void phase2_clockHandler(void) {
 		MboxCondSend(MAILBOX_CLOCK, &now, sizeof(int));
 	}
 	restore_interrupts(old_state);
+}
+
+void disk_handler(int type, void* unit){
+	int unitNo = (int)(long)unit;
+	int mbox_id = 1 + unitNo;
+	int status;
+	USLOSS_DeviceInput(USLOSS_DISK_DEV, unitNo, &status);
+	MboxCondSend(mbox_id, &status, sizeof(int));
+}
+
+void term_handler(int type, void* unit){
+        int unitNo = (int)(long)unit;
+        int mbox_id = 3 + unitNo;
+	int status;
+        USLOSS_DeviceInput(USLOSS_TERM_DEV, unitNo, &status);
+        MboxCondSend(mbox_id, &status, sizeof(int));
 }
 
 /**
