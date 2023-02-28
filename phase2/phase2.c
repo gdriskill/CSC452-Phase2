@@ -3,6 +3,7 @@
 #include <usloss.h>
 #include <usyscall.h>
 #include <string.h>
+#include <assert.h>
 #include "phase1.h"
 #include "phase2.h"
 
@@ -69,6 +70,7 @@ typedef struct MailBox {
 static MailBox mailboxes[MAXMBOX];
 static MailSlot mailSlots[MAXSLOTS];
 PCB shadowTable[MAXPROC];
+int last_clock_send;
 
 void join_consumer_queue(int mbox_id, PCB* consumer);
 void leave_consumer_queue(int mbox_id, PCB* consumer);
@@ -223,6 +225,7 @@ void phase2_init(void) {
 	for(int l=0; l<MAXSYSCALLS; l++){
 		systemCallVec[l] = nullsys;	
 	}
+	last_clock_send = currentTime();
 
 }
 
@@ -410,7 +413,7 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 					join_producer_queue(mbox_id, producer);
 					blockMe(BLOCK_WAITING_ON_CONSUMER);	
 				} else {
-					USLOSS_Console("ERROR: Conditional send and all slots are used\n");
+					restore_interrupts(old_state);
 					return -2;
 				}
 			} 
@@ -458,13 +461,14 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 				join_producer_queue(mbox_id, producer);
 				blockMe(BLOCK_WAITING_ON_CONSUMER);	
 			} else {
-				USLOSS_Console("ERROR: Conditional send and all slots are used\n");
+				restore_interrupts(old_state);
 				return -2;
 			}
 		}
 
 		// Check if Mailbox is active at all (after potential blocking)
 		if(mbox_ptr->status != MAILBOX_ACTIVE){
+			restore_interrupts(old_state);
 			return -3;
 		}
 
@@ -501,7 +505,7 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 			mailSlots[id].status = MAILSLOT_MSG_UNCLAIMED;
 		}
 	}
-	
+	restore_interrupts(old_state);
 	return 0;
 
 }
@@ -583,7 +587,6 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 					join_consumer_queue(mbox_id, consumer);
 					blockMe(BLOCK_WAITING_ON_PRODUCER);
 				} else {
-					USLOSS_Console("ERROR: Conditional receive and no messages are delivered to process\n");
 					restore_interrupts(old_state);
 					return -2;
 				}
@@ -604,7 +607,6 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 				join_consumer_queue(mbox_id, consumer);
 				blockMe(BLOCK_WAITING_ON_PRODUCER);
 			} else {
-				USLOSS_Console("ERROR: Conditional receive and no messages are waiting in mailbox\n");
 				restore_interrupts(old_state);
 				return -2;
 			}
@@ -690,7 +692,37 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
  *   status - an out parameter, which will be used to deliver the device status once an interrupt arrives
  * Return Value: None
  */
-void waitDevice(int type, int unit, int *status) {}
+void waitDevice(int type, int unit, int *status) {
+	int old_state = disable_interrupts();
+	int mbox_id;
+	if(type==USLOSS_CLOCK_DEV){
+		if(unit!=0){
+			USLOSS_Console("ERROR: Invalid value for unit field in waitDevice()\n");
+			USLOSS_Halt(1);
+		}
+		mbox_id = 0;
+	}
+	else if(type==USLOSS_DISK_DEV){
+		if(unit>1||unit<0){
+                        USLOSS_Console("ERROR: Invalid value for unit field in waitDevice()\n");
+                        USLOSS_Halt(1);
+                }
+		mbox_id = 1+unit;
+	}
+	else if(type==USLOSS_TERM_DEV){
+		if(unit>3||unit<0){
+                        USLOSS_Console("ERROR: Invalid value for unit field in waitDevice()\n");
+                        USLOSS_Halt(1);
+                }
+		mbox_id = 3+unit;
+	}
+	else{
+		USLOSS_Console("ERROR: Invalid device type\n");
+		USLOSS_Halt(1);	
+	}
+	MboxRecv(mbox_id, status, sizeof(int));
+	restore_interrupts(old_state);
+}
 
 /* Wakes up the device
  * 
@@ -724,7 +756,17 @@ int phase2_check_io(void) {
  * Args: None
  * Return Value: None 
  */
-void phase2_clockHandler(void) {}
+void phase2_clockHandler(void) {
+	int old_state = disable_interrupts();
+	// check wall clock time, it is has been 100ms or more, send another 
+	// message on mailbox
+	int now = currentTime();
+	if(now-last_clock_send>=100){
+		last_clock_send = now;
+		MboxCondSend(MAILBOX_CLOCK, &now, sizeof(int));
+	}
+	restore_interrupts(old_state);
+}
 
 /**
 Extracts the current mode from the PSR
