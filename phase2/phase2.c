@@ -405,6 +405,10 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 		restore_interrupts(old_state);
 		return -1;
 	}
+	if(msg_size>mbox_ptr->slot_size){
+		restore_interrupts(old_state);
+		return -1;
+	}
 
 	if (mbox_ptr->status == MAILBOX_ACTIVE_ZERO) {
 		// Check if a recipient is waiting. If not (and if block_on_fail), place into the producer queue and block process. If no block, return -2
@@ -418,6 +422,7 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 					join_producer_queue(mbox_id, producer);
 					blockMe(BLOCK_WAITING_ON_CONSUMER);	
 				} else {
+					USLOSS_Console("MboxSend_helper: Could not send, the system is  out of mailbox slots.\n");
 					restore_interrupts(old_state);
 					return -2;
 				}
@@ -445,6 +450,7 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 		MailSlot slot;
 		int id = get_next_mailslot_id();
 		if(id==-1){
+			USLOSS_Console("MboxSend_helper: Could not send, the system is out of mailbox slots.\n");
 			return -2;
 		}
 
