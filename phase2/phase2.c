@@ -34,7 +34,7 @@
 #define BLOCK_WAITING_ON_CONSUMER  14
 #define BLOCK_WAITING_ON_PRODUCER  15
 
-#define DEBUG 0
+#define DEBUG 1
 #define TRACE 0 
 
 typedef struct PCB {
@@ -139,15 +139,15 @@ void leave_consumer_queue(int mbox_id, PCB* consumer) {
 
 	MailBox* mbox_ptr = &mailboxes[mbox_id];
 	if (mbox_ptr->consumers == consumer) {
-		mbox_ptr->consumers = NULL;
+		mbox_ptr->consumers = consumer->next_consumer;
 	} else {
 		PCB* prev_consumer = mbox_ptr->consumers;
 		while (prev_consumer->next_consumer != consumer) {
-			prev_consumer = prev_consumer->next_consumer;
 			if (prev_consumer == NULL) {
 				USLOSS_Console("ERROR: consumer not found in queue. Returning \n");
 				return;
 			}
+			prev_consumer = prev_consumer->next_consumer;
 		}
 		prev_consumer->next_consumer = consumer->next_consumer;
 	}
@@ -179,15 +179,15 @@ void leave_producer_queue(int mbox_id, PCB* producer) {
 
 	MailBox* mbox_ptr = &mailboxes[mbox_id];
 	if (mbox_ptr->producers == producer) {
-		mbox_ptr->producers = NULL;
+		mbox_ptr->producers = producer->next_producer;
 	} else {
 		PCB* prev_producer = mbox_ptr->producers;
 		while (prev_producer->next_producer != producer) {
-			prev_producer = prev_producer->next_producer;
 			if (prev_producer == NULL) {
 				USLOSS_Console("ERROR: producer not found in queue. Returning\n");
 				return;
 			}
+			prev_producer = prev_producer->next_producer;
 		}
 		prev_producer->next_producer = producer->next_producer;
 	}
@@ -603,7 +603,11 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 				consumer->status = BLOCK_WAITING_ON_PRODUCER;
 				join_consumer_queue(mbox_id, consumer);
 				blockMe(BLOCK_WAITING_ON_PRODUCER);
-				
+			
+				if (DEBUG) {
+					USLOSS_Console("DEBUG: Released from block (pid:%d)\n", consumer->id);
+					dumpProcesses();
+				}	
 				// Check if Mailbox is released while blocked
 				if(mbox_ptr->status == MAILBOX_RELEASED) {
 					return -3;
@@ -627,14 +631,14 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 			} else if (slot_ptr->claimant == consumer) {
 				msg_received = true;
 			} else {
-				MailSlot* next_message_ptr = slot_ptr->next_message;
-				while (next_message_ptr != NULL && !msg_received) {
-					if (next_message_ptr->claimant == consumer) {
-						next_message_ptr->status = MAILSLOT_MSG_CLAIMED;
-						leave_consumer_queue(mbox_id, consumer);
+				slot_ptr = slot_ptr->next_message;
+				while (slot_ptr != NULL && !msg_received) {
+					if (slot_ptr->claimant == consumer) {
+						//leave_consumer_queue(mbox_id, consumer);
 						msg_received = true;
+					} else {
+						slot_ptr = slot_ptr->next_message;
 					}
-					next_message_ptr = next_message_ptr->next_message;
 				}
 			}		
 
@@ -647,11 +651,16 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 					consumer->status = BLOCK_WAITING_ON_PRODUCER;
 					join_consumer_queue(mbox_id, consumer);
 					blockMe(BLOCK_WAITING_ON_PRODUCER);
-				
+						
 					// Check if Mailbox is released while blocked
 					if(mbox_ptr->status == MAILBOX_RELEASED) {
 						return -3;
 					}
+
+					// Restarting the search after release from block
+					slot_ptr = mbox_ptr->head;
+					consumer->status = PCB_CONSUMER;
+
 				} else {
 					USLOSS_Console("ERROR: Conditional receive and all messages are already claimed\n");
 					return -2;
@@ -666,7 +675,17 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 		if (msg_ptr != NULL)
 			memcpy(msg_ptr, slot_ptr->message, msg_size);
 		
-		mbox_ptr->head = slot_ptr->next_message;
+		// Removing the claimed mail slot
+		if (slot_ptr == mbox_ptr->head) {
+			mbox_ptr->head = slot_ptr->next_message;
+		} else {
+			MailSlot* prev_msg = mbox_ptr->head;
+			while (prev_msg->next_message != slot_ptr) {
+				prev_msg = prev_msg->next_message;
+			}
+			prev_msg->next_message = slot_ptr->next_message;
+		}
+
 		slot_ptr->status = MAILSLOT_INACTIVE;
 		mbox_ptr->slots_used--;
 	}
