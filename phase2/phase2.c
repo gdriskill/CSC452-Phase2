@@ -401,11 +401,11 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 	if (mbox_ptr->status == MAILBOX_ACTIVE_ZERO) {
 		// Check if a recipient is waiting. If not (and if block_on_fail), place into the producer queue and block process. If no block, return -2
 		
-		bool msg_received = false;
 		PCB* consumer = mbox_ptr->consumers;
-		while (!msg_received) {
-			if (consumer == NULL) {
+		if (consumer == NULL) {
 				if (block_on_fail) {
+					memcpy(producer->message, msg_ptr, msg_size);
+					producer->msg_size = msg_size;
 					producer->status = BLOCK_WAITING_ON_CONSUMER;
 					join_producer_queue(mbox_id, producer);
 					blockMe(BLOCK_WAITING_ON_CONSUMER);	
@@ -415,26 +415,17 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 						return -3;
 					}
 				} else {
-					USLOSS_Console("MboxSend_helper: Could not send, the system is  out of mailbox slots.\n");
 					return -2;
 				}
-			} 
-			else {
+		} 
+		else {
 				// Deliver direct to consumer
 				memcpy(consumer->message, msg_ptr, msg_size);
 				consumer->msg_size = msg_size;
 				leave_consumer_queue(mbox_id, consumer);
-				msg_received = true;
-			}
+				unblockProc(consumer->id);
+				//msg_received = true;
 		}
-		
-		bool unblock = consumer->status == BLOCK_WAITING_ON_PRODUCER;
-		consumer->status = PCB_CONSUMER_HAS_MESSAGE;	
-
-		// Unblock consumer if needed
-		if (unblock) {
-			unblockProc(consumer->id);
-		} 
 	} 
 	// Regular slot mailbox
 	else {
@@ -544,7 +535,7 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 
 	MailBox* mbox_ptr = &mailboxes[mbox_id%MAXMBOX];
 	if (mbox_ptr->status == MAILBOX_RELEASED) {
-		USLOSS_Console("ERROR: Mailbox (%d) has already been released\n", mbox_id);
+		//USLOSS_Console("ERROR: Mailbox (%d) has already been released\n", mbox_id);
 		return -1;
 	}
 	if (mbox_ptr->status == MAILBOX_INACTIVE) {
@@ -572,28 +563,37 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 
 	// If a zero slot mailbox, check if the consumer already has a message on the table. If not, block if allowed (or fail if not)
 	if (mbox_ptr->status == MAILBOX_ACTIVE_ZERO) {
-		while (!msg_received) {
-			if (consumer->status == PCB_CONSUMER_HAS_MESSAGE) {
-				msg_size =	msg_max_size < consumer->msg_size ? 
-							msg_max_size : consumer->msg_size;
-
-				consumer->status = PCB_CONSUMER;
-				msg_received = true;	
-			} else {
-				if (block_on_fail) {
-					consumer->status = BLOCK_WAITING_ON_PRODUCER;
-					join_consumer_queue(mbox_id, consumer);
-					blockMe(BLOCK_WAITING_ON_PRODUCER);
-					
-					// Check if Mailbox is released while blocked
-					if(mbox_ptr->status == MAILBOX_RELEASED) {
-						return -3;
-					}
-				} else {
-					return -2;
-				}
-			}
+		if(mbox_ptr->producers!=NULL){
+			PCB* producer = mbox_ptr->producers;
+			msg_size = msg_max_size < producer->msg_size ? 
+					msg_max_size : producer->msg_size;
+			if (msg_ptr != NULL)
+				memcpy(msg_ptr, producer->message, msg_size);	
+			leave_producer_queue(mbox_id, producer);
+			producer->status = PCB_PRODUCER;
+			unblockProc(producer->id);
 		}
+		else{
+			if (block_on_fail) {
+                        	consumer->status = BLOCK_WAITING_ON_PRODUCER;
+                                join_consumer_queue(mbox_id, consumer);
+                                blockMe(BLOCK_WAITING_ON_PRODUCER);
+                                        
+                                // Check if Mailbox is released while blocked
+                                if(mbox_ptr->status == MAILBOX_RELEASED) {
+                                	return -3;
+                                }
+				msg_size = msg_max_size < consumer->msg_size ?
+                                        msg_max_size : consumer->msg_size;
+                        	if (msg_ptr != NULL)
+                                	memcpy(msg_ptr, consumer->message, msg_size);
+				
+                        } else {
+                                        return -2;
+                       	}
+ 		}
+		shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
+                return msg_size;
 	}
 
 	else {
