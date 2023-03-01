@@ -34,7 +34,7 @@
 #define BLOCK_WAITING_ON_CONSUMER  14
 #define BLOCK_WAITING_ON_PRODUCER  15
 
-#define DEBUG 1
+#define DEBUG 0
 #define TRACE 0 
 
 typedef struct PCB {
