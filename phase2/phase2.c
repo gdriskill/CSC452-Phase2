@@ -48,7 +48,6 @@ typedef struct PCB {
 
 typedef struct MailSlot {
 	int id;
-	//void* message;
 	char message [MAX_MESSAGE];
 	int msg_size;
 	struct MailSlot* next_message;
@@ -83,8 +82,8 @@ int get_mode();
 int disable_interrupts();
 void restore_interrupts(int old_state);
 void enable_interrupts();
-void disk_handler(int type, void* unit);
-void term_handler(int type, void* unit);
+static void disk_handler(int type, void* unit);
+static void term_handler(int type, void* unit);
 
 int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail);
 int Recv(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail);
@@ -118,7 +117,7 @@ void join_consumer_queue(int mbox_id, PCB* consumer) {
 	if (TRACE)
 		USLOSS_Console("TRACE: In join consumer queue\n");
 	if (DEBUG)
-		USLOSS_Console("DEBUG: Mbox id: %d, pid: %d\n", mbox_id, consumer->id);
+		USLOSS_Console("DEBUG: Joining consumer queue for Mbox id: %d, pid: %d\n", mbox_id, consumer->id);
 
 	MailBox* mbox_ptr = &mailboxes[mbox_id];
 	if (mbox_ptr->consumers == NULL) {
@@ -136,7 +135,7 @@ void leave_consumer_queue(int mbox_id, PCB* consumer) {
 	if (TRACE)
 		USLOSS_Console("TRACE: In leave consumer queue\n");
 	if (DEBUG)
-		USLOSS_Console("DEBUG: Mbox id: %d, pid: %d\n", mbox_id, consumer->id);
+		USLOSS_Console("DEBUG: Leaving consumer queue for Mbox id: %d, pid: %d\n", mbox_id, consumer->id);
 
 	MailBox* mbox_ptr = &mailboxes[mbox_id];
 	if (mbox_ptr->consumers == consumer) {
@@ -158,7 +157,8 @@ void join_producer_queue(int mbox_id, PCB* producer) {
 	if (TRACE)
 		USLOSS_Console("TRACE: In join producer queue\n");
 	if (DEBUG)
-		USLOSS_Console("DEBUG: Mbox id: %d, pid: %d\n", mbox_id, producer->id);
+		USLOSS_Console("DEBUG: Joining producer queue for Mbox id: %d, pid: %d\n", mbox_id, producer->id);
+	
 	MailBox* mbox_ptr = &mailboxes[mbox_id];
 	if (mbox_ptr->producers == NULL) {
 		mbox_ptr->producers = producer;
@@ -175,7 +175,7 @@ void leave_producer_queue(int mbox_id, PCB* producer) {
 	if (TRACE)
 		USLOSS_Console("TRACE: In leave producer queue\n");
 	if (DEBUG)
-		USLOSS_Console("DEBUG: Mbox id: %d, pid: %d\n", mbox_id, producer->id);
+		USLOSS_Console("DEBUG: Leaving producer queue for Mbox id: %d, pid: %d\n", mbox_id, producer->id);
 
 	MailBox* mbox_ptr = &mailboxes[mbox_id];
 	if (mbox_ptr->producers == producer) {
@@ -214,7 +214,7 @@ void phase2_init(void) {
 	// Create mailboxes for interrupts
 	for(int m=0; m<7; m++){
 		MboxCreate(1, sizeof(int));
-        }
+	}
 	for(int j=0; j<MAXSLOTS; j++){
 		MailSlot ms;
 		ms.status = MAILSLOT_INACTIVE;
@@ -284,9 +284,6 @@ int MboxCreate(int slots, int slot_size) {
 	mb.producers = NULL;
 	mailboxes[id] = mb;
 
-	if (DEBUG)
-		USLOSS_Console("DEBUG: Mailbox created for id:%d\n", id);
-
 	return id;
 }
 
@@ -322,21 +319,16 @@ int MboxRelease(int mbox_id) {
 	//restore_interrupts(old_state);
 
 	while (consumer!=NULL) {
-		if (DEBUG)
-			USLOSS_Console("DEBUG: Unblocking consumer (%d)\n", consumer->id);
 		unblockProc(consumer->id);
 		consumer = consumer->next_consumer;
 	}
 	
 	PCB* producer = mbox_ptr->producers;
 	while (producer!=NULL) {
-		if (DEBUG)
-			USLOSS_Console("DEBUG: Unblocking producer (%d)\n", producer->id);
 		unblockProc(producer->id);
 		producer = producer->next_producer;
 	}
 
-	mbox_ptr->status = MAILBOX_INACTIVE;
 	mbox_ptr->slots_used = 0;
 	restore_interrupts(old_state);
 	return 0;
@@ -384,7 +376,6 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size) {
 int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 	if (TRACE)
 		USLOSS_Console("TRACE: In MboxSend (id:%d) \n", mbox_id);
-	int old_state = disable_interrupts();
 	
 	// Log process that is sending
 	int pid = getpid();
@@ -398,15 +389,12 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 
 	MailBox* mbox_ptr = &mailboxes[mbox_id];	
 	if(mbox_ptr->status == MAILBOX_RELEASED){
-		restore_interrupts(old_state);
-		return -3;	
+		return -1;	
 	}
 	if(mbox_ptr->status == MAILBOX_INACTIVE || msg_size>MAX_MESSAGE || msg_size<0){
-		restore_interrupts(old_state);
 		return -1;
 	}
 	if(msg_size>mbox_ptr->slot_size){
-		restore_interrupts(old_state);
 		return -1;
 	}
 
@@ -421,9 +409,13 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 					producer->status = BLOCK_WAITING_ON_CONSUMER;
 					join_producer_queue(mbox_id, producer);
 					blockMe(BLOCK_WAITING_ON_CONSUMER);	
+					
+					// Check if Mailbox is released while blocked
+					if(mbox_ptr->status == MAILBOX_RELEASED) {
+						return -3;
+					}
 				} else {
 					USLOSS_Console("MboxSend_helper: Could not send, the system is  out of mailbox slots.\n");
-					restore_interrupts(old_state);
 					return -2;
 				}
 			} 
@@ -464,24 +456,20 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 
 		// Check if mailbox is full. If so (and if block_on_fail), place into the producer queue and block process. If no block, return -2
 		if (mbox_ptr->slots_used == mbox_ptr->max_slots) {
-			if (DEBUG)
-				USLOSS_Console("DEBUG: Blocking, waiting on consumer (pid:%d)\n", pid);
-			
 			if (block_on_fail) {
 				producer->status = BLOCK_WAITING_ON_CONSUMER;
 				join_producer_queue(mbox_id, producer);
 				blockMe(BLOCK_WAITING_ON_CONSUMER);	
+				
+				// Check if Mailbox is released while blocked
+				if(mbox_ptr->status == MAILBOX_RELEASED) {
+					return -3;
+				}
 			} else {
-				restore_interrupts(old_state);
 				return -2;
 			}
 		}
 
-		// Check if Mailbox is active at all (after potential blocking)
-		if(mbox_ptr->status != MAILBOX_ACTIVE){
-			restore_interrupts(old_state);
-			return -3;
-		}
 
 		// Adding message to slot 
 		if (mbox_ptr->head == NULL) {
@@ -516,7 +504,7 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 			mailSlots[id].status = MAILSLOT_MSG_UNCLAIMED;
 		}
 	}
-	restore_interrupts(old_state);
+	
 	return 0;
 
 }
@@ -557,7 +545,7 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 	MailBox* mbox_ptr = &mailboxes[mbox_id%MAXMBOX];
 	if (mbox_ptr->status == MAILBOX_RELEASED) {
 		USLOSS_Console("ERROR: Mailbox (%d) has already been released\n", mbox_id);
-		return -3;
+		return -1;
 	}
 	if (mbox_ptr->status == MAILBOX_INACTIVE) {
 		USLOSS_Console("ERROR: Mailbox (%d) is inactive\n", mbox_id);
@@ -568,7 +556,6 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 		return -1;
 	}
 
-	int old_state = disable_interrupts();
 	// Log process that is receiving
 	int pid = getpid();
 	PCB* consumer = &shadowTable[pid%MAXPROC];
@@ -597,8 +584,12 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 					consumer->status = BLOCK_WAITING_ON_PRODUCER;
 					join_consumer_queue(mbox_id, consumer);
 					blockMe(BLOCK_WAITING_ON_PRODUCER);
+					
+					// Check if Mailbox is released while blocked
+					if(mbox_ptr->status == MAILBOX_RELEASED) {
+						return -3;
+					}
 				} else {
-					restore_interrupts(old_state);
 					return -2;
 				}
 			}
@@ -608,17 +599,16 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 	else {
 		// Checking if slot exists. If not, block
 		while (mbox_ptr->head == NULL) {
-			if (DEBUG)
-				USLOSS_Console("DEBUG: No mail slot yet\n");
 			if (block_on_fail) {
-				if (DEBUG)
-					USLOSS_Console("DEBUG: Blocking (pid: %d)\n", pid);
-
 				consumer->status = BLOCK_WAITING_ON_PRODUCER;
 				join_consumer_queue(mbox_id, consumer);
 				blockMe(BLOCK_WAITING_ON_PRODUCER);
+				
+				// Check if Mailbox is released while blocked
+				if(mbox_ptr->status == MAILBOX_RELEASED) {
+					return -3;
+				}
 			} else {
-				restore_interrupts(old_state);
 				return -2;
 			}
 		}
@@ -657,9 +647,13 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 					consumer->status = BLOCK_WAITING_ON_PRODUCER;
 					join_consumer_queue(mbox_id, consumer);
 					blockMe(BLOCK_WAITING_ON_PRODUCER);
+				
+					// Check if Mailbox is released while blocked
+					if(mbox_ptr->status == MAILBOX_RELEASED) {
+						return -3;
+					}
 				} else {
 					USLOSS_Console("ERROR: Conditional receive and all messages are already claimed\n");
-					restore_interrupts(old_state);
 					return -2;
 				}
 			}
@@ -687,7 +681,7 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 		producer_ptr->status = PCB_PRODUCER;
 		unblockProc(producer_ptr->id);	
 	}
-	restore_interrupts(old_state);
+	
 	return msg_size;
 }
 
@@ -715,24 +709,25 @@ void waitDevice(int type, int unit, int *status) {
 	}
 	else if(type==USLOSS_DISK_DEV){
 		if(unit>1||unit<0){
-                        USLOSS_Console("ERROR: Invalid value for unit field in waitDevice()\n");
-                        USLOSS_Halt(1);
-                }
+			USLOSS_Console("ERROR: Invalid value for unit field in waitDevice()\n");
+			USLOSS_Halt(1);
+		}
 		mbox_id = 1+unit;
 	}
 	else if(type==USLOSS_TERM_DEV){
 		if(unit>3||unit<0){
-                        USLOSS_Console("ERROR: Invalid value for unit field in waitDevice()\n");
-                        USLOSS_Halt(1);
-                }
+			USLOSS_Console("ERROR: Invalid value for unit field in waitDevice()\n");
+			USLOSS_Halt(1);
+		}
 		mbox_id = 3+unit;
 	}
 	else{
 		USLOSS_Console("ERROR: Invalid device type\n");
 		USLOSS_Halt(1);	
 	}
+
 	blocked_waitDevice++;
-	MboxRecv(mbox_id, status, sizeof(int));
+	Recv(mbox_id, status, sizeof(int), true);
 	blocked_waitDevice--;
 	restore_interrupts(old_state);
 }
@@ -773,18 +768,16 @@ int phase2_check_io(void) {
  * Return Value: None 
  */
 void phase2_clockHandler(void) {
-	int old_state = disable_interrupts();
 	// check wall clock time, it is has been 100ms or more, send another 
 	// message on mailbox
 	int now = currentTime();
 	if(now-last_clock_send>=100){
 		last_clock_send = now;
-		MboxCondSend(MAILBOX_CLOCK, &now, sizeof(int));
+		Send(MAILBOX_CLOCK, &now, sizeof(int), false);
 	}
-	restore_interrupts(old_state);
 }
 
-void disk_handler(int type, void* unit){
+static void disk_handler(int type, void* unit){
 	int unitNo = (int)(long)unit;
 	int mbox_id = 1 + unitNo;
 	int status;
@@ -792,12 +785,15 @@ void disk_handler(int type, void* unit){
 	MboxCondSend(mbox_id, &status, sizeof(int));
 }
 
-void term_handler(int type, void* unit){
-        int unitNo = (int)(long)unit;
-        int mbox_id = 3 + unitNo;
+static void term_handler(int type, void* unit){
+	if (TRACE)
+		USLOSS_Console("TRACE: In term handler\n");
+
+	int unitNo = (int)(long)unit;
+	int mbox_id = 3 + unitNo;
 	int status;
-        USLOSS_DeviceInput(USLOSS_TERM_DEV, unitNo, &status);
-        MboxCondSend(mbox_id, &status, sizeof(int));
+	USLOSS_DeviceInput(USLOSS_TERM_DEV, unitNo, &status);
+	MboxCondSend(mbox_id, &status, sizeof(int));
 }
 
 /**
@@ -815,6 +811,9 @@ int get_mode(){
  * 		disbaled.
  */
 int disable_interrupts(){
+	if (TRACE)
+		USLOSS_Console("TRACE: Disabling interrupts\n");
+
 	int old_state = USLOSS_PSR_CURRENT_INT;
 	int result = USLOSS_PsrSet(USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_INT);
 	if(result!=USLOSS_DEV_OK){
@@ -828,6 +827,9 @@ int disable_interrupts(){
  * disabled. If old_state is grearter than 0, interrupts are enabled.
  */
 void restore_interrupts(int old_state){
+	if (TRACE)
+		USLOSS_Console("TRACE: Restoring interrupts\n");
+
 	int result;
 	if(old_state>0){
 		result = USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT);
