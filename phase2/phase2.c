@@ -84,6 +84,7 @@ void restore_interrupts(int old_state);
 void enable_interrupts();
 static void disk_handler(int type, void* unit);
 static void term_handler(int type, void* unit);
+static void syscall_handler(int type, void* unit);
 
 int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail);
 int Recv(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail);
@@ -91,13 +92,15 @@ int Recv(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail);
 // Helper Funcs
 /////////////////////////////////////////////////////////////
 void nullsys(USLOSS_Sysargs *args){
-	USLOSS_Console("ERROR: Syscall\n");
+	USLOSS_Console("nullsys(): Program called an unimplemented syscall.  syscall no: %d   PSR: %#04x\n",
+		args->number, USLOSS_PsrGet());
 	USLOSS_Halt(1);
 }
 
 int get_next_mailbox_id(){
 	for(int i=0; i<MAXMBOX; i++){
-		if(mailboxes[i].status == MAILBOX_INACTIVE){
+		int status = mailboxes[i].status;
+		if(status == MAILBOX_INACTIVE || status == MAILBOX_RELEASED){
 			return i;
 		}	
 	}
@@ -106,7 +109,7 @@ int get_next_mailbox_id(){
 
 int get_next_mailslot_id(){
 	for(int i=0; i<MAXSLOTS; i++){
-		if(mailSlots[i].status == MAILBOX_INACTIVE){
+		if(mailSlots[i].status == MAILSLOT_INACTIVE){
 			return i;
 		}
 	}
@@ -232,6 +235,7 @@ void phase2_init(void) {
 	blocked_waitDevice = 0;
 	USLOSS_IntVec[USLOSS_DISK_INT] = disk_handler;
 	USLOSS_IntVec[USLOSS_TERM_INT] = term_handler;
+	USLOSS_IntVec[USLOSS_SYSCALL_INT] = syscall_handler;
 }
 
 /* Called by Phase1 init, once processes are running but before the testcase begins.
@@ -263,14 +267,12 @@ int MboxCreate(int slots, int slot_size) {
 		USLOSS_Console("DEBUG: Slots: %d, Slot size: %d\n", slots, slot_size);
 
 	if(slots<0 || slot_size<0 || slots>MAXSLOTS || slot_size>MAX_MESSAGE){
-		USLOSS_Console("ERROR: Invalid parameters\n");
 		return -1;
 	}
 	int id = get_next_mailbox_id();
 
 	if(id==-1){
 		// Mailbox array is full
-		//USLOSS_Console("ERROR: Too many mailboxes\n");
 		return -1;
 	}
 	MailBox mb;
@@ -330,6 +332,7 @@ int MboxRelease(int mbox_id) {
 	}
 
 	mbox_ptr->slots_used = 0;
+	//mbox_ptr->status = MAILBOX_INACTIVE;
 	restore_interrupts(old_state);
 	return 0;
 }
@@ -429,6 +432,21 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 	} 
 	// Regular slot mailbox
 	else {
+		// Check if mailbox is full. If so (and if block_on_fail), place into the producer queue and block process. If no block, return -2
+                if (mbox_ptr->slots_used == mbox_ptr->max_slots) {
+                        if (block_on_fail) {
+                                producer->status = BLOCK_WAITING_ON_CONSUMER;
+                                join_producer_queue(mbox_id, producer);
+                                blockMe(BLOCK_WAITING_ON_CONSUMER);
+
+                                // Check if Mailbox is released while blocked
+                                if(mbox_ptr->status == MAILBOX_RELEASED) {
+                                        return -3;
+                                }
+                        } else {
+                                return -2;
+                        }
+                }
 		// Initializing the slot
 		MailSlot slot;
 		int id = get_next_mailslot_id();
@@ -444,22 +462,6 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 		slot.next_message = NULL;
 		slot.status = MAILSLOT_ACTIVE;
 		mailSlots[id%MAXSLOTS] = slot;
-
-		// Check if mailbox is full. If so (and if block_on_fail), place into the producer queue and block process. If no block, return -2
-		if (mbox_ptr->slots_used == mbox_ptr->max_slots) {
-			if (block_on_fail) {
-				producer->status = BLOCK_WAITING_ON_CONSUMER;
-				join_producer_queue(mbox_id, producer);
-				blockMe(BLOCK_WAITING_ON_CONSUMER);	
-				
-				// Check if Mailbox is released while blocked
-				if(mbox_ptr->status == MAILBOX_RELEASED) {
-					return -3;
-				}
-			} else {
-				return -2;
-			}
-		}
 
 
 		// Adding message to slot 
@@ -535,11 +537,9 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 
 	MailBox* mbox_ptr = &mailboxes[mbox_id%MAXMBOX];
 	if (mbox_ptr->status == MAILBOX_RELEASED) {
-		//USLOSS_Console("ERROR: Mailbox (%d) has already been released\n", mbox_id);
 		return -1;
 	}
 	if (mbox_ptr->status == MAILBOX_INACTIVE) {
-		USLOSS_Console("ERROR: Mailbox (%d) is inactive\n", mbox_id);
 		return -1;
 	}
 	if (msg_max_size < 0) {
@@ -565,8 +565,11 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 	if (mbox_ptr->status == MAILBOX_ACTIVE_ZERO) {
 		if(mbox_ptr->producers!=NULL){
 			PCB* producer = mbox_ptr->producers;
-			msg_size = msg_max_size < producer->msg_size ? 
-					msg_max_size : producer->msg_size;
+			msg_size =  producer->msg_size; 
+			// Trying to recieve a message that's bigger than buffer
+			if(msg_size>msg_max_size){
+				return -1;
+			}
 			if (msg_ptr != NULL)
 				memcpy(msg_ptr, producer->message, msg_size);	
 			leave_producer_queue(mbox_id, producer);
@@ -583,8 +586,11 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
                                 if(mbox_ptr->status == MAILBOX_RELEASED) {
                                 	return -3;
                                 }
-				msg_size = msg_max_size < consumer->msg_size ?
-                                        msg_max_size : consumer->msg_size;
+					msg_size = consumer->msg_size;
+					// Trying to recieve a message that's bigger than buffer
+					if(msg_size>msg_max_size){
+						return -1;
+					}
                         	if (msg_ptr != NULL)
                                 	memcpy(msg_ptr, consumer->message, msg_size);
 				
@@ -669,9 +675,11 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 		}
 
 		// Consume the message by copying it onto the provided pointer
-		msg_size =	msg_max_size < slot_ptr->msg_size ? 
-					msg_max_size : slot_ptr->msg_size;
-		
+		msg_size = slot_ptr->msg_size;
+		// Trying to recieve a message that's bigger than buffer
+		if(msg_size>msg_max_size){
+			return -1;
+		}
 		if (msg_ptr != NULL)
 			memcpy(msg_ptr, slot_ptr->message, msg_size);
 		
@@ -813,6 +821,16 @@ static void term_handler(int type, void* unit){
 	int status;
 	USLOSS_DeviceInput(USLOSS_TERM_DEV, unitNo, &status);
 	MboxCondSend(mbox_id, &status, sizeof(int));
+}
+
+static void syscall_handler(int type, void* args){
+	USLOSS_Sysargs* syscall_args = args;
+	int number = syscall_args->number;
+	if(number<0 || number>49){
+		USLOSS_Console("syscallHandler(): Invalid syscall number %d\n", number);
+		USLOSS_Halt(-1);
+	}
+	(*systemCallVec[number])(syscall_args);
 }
 
 /**
