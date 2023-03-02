@@ -798,7 +798,7 @@ void phase2_clockHandler(void) {
 	// check wall clock time, it is has been 100ms or more, send another 
 	// message on mailbox
 	int now = currentTime();
-	if(now-last_clock_send>=100){
+	if(now-last_clock_send>=100000){
 		last_clock_send = now;
 		Send(MAILBOX_CLOCK, &now, sizeof(int), false);
 	}
