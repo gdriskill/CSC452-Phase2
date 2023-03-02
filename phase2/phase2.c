@@ -86,6 +86,7 @@ void enable_interrupts();
 static void disk_handler(int type, void* unit);
 static void term_handler(int type, void* unit);
 static void syscall_handler(int type, void* unit);
+void nullsys(USLOSS_Sysargs *args);
 
 int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail);
 int Recv(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail);
@@ -93,12 +94,19 @@ int put_in_slot(int mbox_id, void* msg_ptr, int  msg_size);
 
 // Helper Funcs
 /////////////////////////////////////////////////////////////
+/*
+Dummy function of the syscalls. Prints an error message and halts
+*/
 void nullsys(USLOSS_Sysargs *args){
 	USLOSS_Console("nullsys(): Program called an unimplemented syscall.  syscall no: %d   PSR: %#04x\n",
 		args->number, USLOSS_PsrGet());
 	USLOSS_Halt(1);
 }
 
+/*
+Returns the next available mailslot in the system or -1 if none
+are available
+*/
 int get_next_mailbox_id(){
 	for(int i=0; i<MAXMBOX; i++){
 		int status = mailboxes[i].status;
@@ -109,6 +117,10 @@ int get_next_mailbox_id(){
 	return -1;
 }
 
+/*
+Returns the next available mailslot in the system or -1 if none
+are available
+*/
 int get_next_mailslot_id(){
 	for(int i=0; i<MAXSLOTS; i++){
 		if(mailSlots[i].status == MAILSLOT_INACTIVE){
@@ -118,6 +130,10 @@ int get_next_mailslot_id(){
 	return -1;
 }
 
+/*
+Adds the specified consumer to the tail of the mailbox's consumer 
+queue
+*/
 void join_consumer_queue(int mbox_id, PCB* consumer) {
 	if (TRACE)
 		USLOSS_Console("TRACE: In join consumer queue\n");
@@ -136,6 +152,9 @@ void join_consumer_queue(int mbox_id, PCB* consumer) {
 	}
 }
 
+/*
+Removes the specified consumer from the mailbox's consumer queue
+*/
 void leave_consumer_queue(int mbox_id, PCB* consumer) {
 	if (TRACE)
 		USLOSS_Console("TRACE: In leave consumer queue\n");
@@ -158,6 +177,10 @@ void leave_consumer_queue(int mbox_id, PCB* consumer) {
 	}
 }
 
+/*
+Adds the specified producer to the tail of the mailbox's producer
+queue
+*/
 void join_producer_queue(int mbox_id, PCB* producer) {
 	if (TRACE)
 		USLOSS_Console("TRACE: In join producer queue\n");
@@ -176,6 +199,10 @@ void join_producer_queue(int mbox_id, PCB* producer) {
 	}
 }
 
+/*
+Removes the specified producer from the mailbox's producer queue, and
+adds its message to a mailslot if its not a zere slot box
+*/
 void leave_producer_queue(int mbox_id, PCB* producer) {
 	if (TRACE)
 		USLOSS_Console("TRACE: In leave producer queue\n");
@@ -215,7 +242,6 @@ void leave_producer_queue(int mbox_id, PCB* producer) {
 void phase2_init(void) {
 	for(int i=0; i<MAXMBOX; i++){
 		MailBox mb;
-		//mb.status = i <= MAILBOX_TERM4 ? MAILBOX_ACTIVE : MAILBOX_INACTIVE;
 		mb.status = MAILBOX_INACTIVE;
 		mailboxes[i] = mb;
 	}
@@ -323,7 +349,6 @@ int MboxRelease(int mbox_id) {
 	}
 	
 	PCB* consumer = mbox_ptr->consumers;
-	//restore_interrupts(old_state);
 
 	while (consumer!=NULL) {
 		unblockProc(consumer->id);
@@ -337,7 +362,6 @@ int MboxRelease(int mbox_id) {
 	}
 
 	mbox_ptr->slots_used = 0;
-	//mbox_ptr->status = MAILBOX_INACTIVE;
 	restore_interrupts(old_state);
 	return 0;
 }
@@ -384,6 +408,21 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
 	return resp;
 }
 
+/* Sends a message through a mailbox. 
+ * If no consumers queued and no space for message, does not block
+ * 
+ * May Block: Yes
+ * May Context Switch: Yes
+ * Args:
+ *   mailboxID - the ID of the mailbox
+ *   message - pointer to a buffer. If messageSize is nonzero, then this must be non-NULL
+ *   messageSize - the length of the message to send
+ * Return Value:
+ *   -3: the mailbox was released but is not completely invalid yet
+ *   -2: The system has run out of global mailbox slots, so the message could not be queued
+ *   -1: Illegal values given as arguments including invalid mailbox ID
+ *   0: Success
+ */
 int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size) {
 	int old_state = disable_interrupts();
 	int resp = Send(mbox_id, msg_ptr, msg_size, false);
@@ -458,7 +497,6 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 				consumer->msg_size = msg_size;
 				leave_consumer_queue(mbox_id, consumer);
 				unblockProc(consumer->id);
-				//msg_received = true;
 		}
 	} 
 	// Regular slot mailbox
@@ -470,7 +508,6 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 				memcpy(producer->message, msg_ptr, msg_size);
 				producer->msg_size = msg_size;
                                 join_producer_queue(mbox_id, producer);
-                                //print_prodq(mbox_id);
 				blockMe(BLOCK_WAITING_ON_CONSUMER);
 
                                 // Check if Mailbox is released while blocked
@@ -478,68 +515,13 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
                                     shadowTable[pid%MAXPROC].status = PCB_INACTIVE;    
 						return -3;
                                 }
-				//USLOSS_Console("unblock in send!\n");
 				result = producer->result;
-				//leave_producer_queue(mbox_id, producer);
-				//print_prodq(mbox_id);
                         } else {
 					shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
 					return -2;
                         }
                 }
-		else{/*
-		// Initializing the slot
-		MailSlot slot;
-		int id = get_next_mailslot_id();
-		if(id==-1){
-			USLOSS_Console("MboxSend_helper: Could not send, the system is out of mailbox slots.\n");
-			shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
-			return -2;
-		}
-
-		slot.id = id;
-		slot.msg_size = msg_size;	
-		memcpy(slot.message, msg_ptr, msg_size);
-		slot.claimant = NULL;
-		slot.next_message = NULL;
-		slot.status = MAILSLOT_ACTIVE;
-		mailSlots[id%MAXSLOTS] = slot;
-
-
-		// Adding message to slot 
-		if (mbox_ptr->head == NULL) {
-			mbox_ptr->head = &mailSlots[id];
-		} else {
-			MailSlot* slot_ptr = mbox_ptr->head;
-			while (slot_ptr->next_message != NULL) {
-				slot_ptr = slot_ptr->next_message;
-			}
-			slot_ptr->next_message = &mailSlots[id];
-		}
-		mbox_ptr->slots_used++;
-		print_mbox(mbox_id);
-		
-		// Check if there is a consumer ready
-		PCB* consumer = mbox_ptr->consumers;
-		if (consumer != NULL) {
-			mailSlots[id].status = MAILSLOT_MSG_CLAIMED; 
-			mailSlots[id].claimant = consumer;
-
-			// Copy the message onto the PCB object
-			memcpy(consumer->message, msg_ptr, msg_size);
-		
-			if (consumer->status == BLOCK_WAITING_ON_PRODUCER) {
-				if (DEBUG)
-					USLOSS_Console("DEBUG: Consumer waiting. Unblocking (%d)\n", consumer->id);
-
-				consumer->status = PCB_CONSUMER;
-				leave_consumer_queue(mbox_id, consumer);
-				USLOSS_Console("unblocking consumer %d and giving it message %d\n", consumer->id, id);
-				unblockProc(consumer->id);	
-			}
-		} else {
-			mailSlots[id].status = MAILSLOT_MSG_UNCLAIMED;
-		}*/
+		else{
 		result = put_in_slot(mbox_id, msg_ptr, msg_size);
 		}
 	}
@@ -554,7 +536,6 @@ int put_in_slot(int mbox_id, void* msg_ptr, int  msg_size){
                 int id = get_next_mailslot_id();
                 if(id==-1){
                         USLOSS_Console("MboxSend_helper: Could not send, the system is out of mailbox slots.\n");
-                        //shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
                         return -2;
                 }
 
@@ -593,7 +574,6 @@ int put_in_slot(int mbox_id, void* msg_ptr, int  msg_size){
 
                                 consumer->status = PCB_CONSUMER;
                                 leave_consumer_queue(mbox_id, consumer);
-                                //USLOSS_Console("unblocking consumer %d and giving it message %d\n", consumer->id, id);
                                 unblockProc(consumer->id);
                         }
                 } else {
@@ -645,8 +625,6 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 		USLOSS_Console("ERROR: Invalid parameters\n");
 		return -1;
 	}
-	//USLOSS_Console("Current mbox before receive\n");
-	//print_mbox(mbox_id);
 	// Log process that is receiving
 	int pid = getpid();
 	PCB* consumer = &shadowTable[pid%MAXPROC];
@@ -746,7 +724,6 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 				slot_ptr = slot_ptr->next_message;
 				while (slot_ptr != NULL && !msg_received) {
 					if (slot_ptr->claimant == consumer) {
-						//leave_consumer_queue(mbox_id, consumer);
 						msg_received = true;
 					} else {
 						slot_ptr = slot_ptr->next_message;
@@ -807,20 +784,12 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 	
 	// Removing consumer from shadowTable
 	shadowTable[pid%MAXPROC].status = PCB_INACTIVE;		
-	//USLOSS_Console("at end of receive\n");
-	//print_prodq(mbox_id);	
 	// Unblocking the producer, if it's blocked
 	PCB* producer_ptr = mbox_ptr->producers;
 	if (producer_ptr != NULL) {
-		//mbox_ptr->producers = producer_ptr->next_producer;
 		leave_producer_queue(mbox_id, producer_ptr);
-		//USLOSS_Console("done realesing\n");
-		//if(producer_ptr->status!=PCB_PRODUCER){
-			producer_ptr->status = PCB_PRODUCER;
-			unblockProc(producer_ptr->id);	
-		//	return msg_size;
-		//}
-		//producer_ptr = producer_ptr->next_producer;
+		producer_ptr->status = PCB_PRODUCER;
+		unblockProc(producer_ptr->id);	
 	}
 	
 	return msg_size;
@@ -873,19 +842,7 @@ void waitDevice(int type, int unit, int *status) {
 	restore_interrupts(old_state);
 }
 
-/* Wakes up the device
- * 
- * May Block: ?
- * May Context Switch: ?
- * Args:
- *   type - the device type: clock, disk, or terminal
- *   unit - which "unit" of a given type you are accessing. NULL pointer is ok
- *   status - ?
- * Return Value: None
- */
-void wakeupByDevice(int type, int unit, int status) {}
-
-/* Called by Phase1 from sentinel, if it ever runs. 
+/* Called by Phase1 from sentinel, if it ever runs.
  * 
  * May Block: No
  * May Context Switch: No
@@ -918,6 +875,11 @@ void phase2_clockHandler(void) {
 	}
 }
 
+/*
+Disk interrupt handler. 
+Reads the status for this device input, and then conditionnaly sends it as a 
+message to the mailbox for this device
+*/
 static void disk_handler(int type, void* unit){
 	int unitNo = (int)(long)unit;
 	int mbox_id = 1 + unitNo;
@@ -926,6 +888,11 @@ static void disk_handler(int type, void* unit){
 	MboxCondSend(mbox_id, &status, sizeof(int));
 }
 
+/*
+Terminal interrupt handler. 
+Reads the status for this device input, and then conditionnaly sends it as a 
+message to the mailbox for this device
+*/
 static void term_handler(int type, void* unit){
 	if (TRACE)
 		USLOSS_Console("TRACE: In term handler\n");
@@ -937,6 +904,11 @@ static void term_handler(int type, void* unit){
 	MboxCondSend(mbox_id, &status, sizeof(int));
 }
 
+/*
+Syscall interrupt handler. 
+Checks that the syscall number is valid, then calls the function stored
+in systemCallVec[] for that syscall. 
+*/
 static void syscall_handler(int type, void* args){
 	USLOSS_Sysargs* syscall_args = args;
 	int number = syscall_args->number;
