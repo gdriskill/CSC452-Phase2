@@ -40,6 +40,7 @@
 typedef struct PCB {
 	int id;
 	int status;
+	int result;
 	char message [MAX_MESSAGE];
 	int msg_size;
 	struct PCB* next_consumer;
@@ -88,6 +89,7 @@ static void syscall_handler(int type, void* unit);
 
 int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail);
 int Recv(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail);
+int put_in_slot(int mbox_id, void* msg_ptr, int  msg_size);
 
 // Helper Funcs
 /////////////////////////////////////////////////////////////
@@ -193,6 +195,9 @@ void leave_producer_queue(int mbox_id, PCB* producer) {
 			prev_producer = prev_producer->next_producer;
 		}
 		prev_producer->next_producer = producer->next_producer;
+	}
+	if(mbox_ptr->status != MAILBOX_ACTIVE_ZERO){
+		producer->result = put_in_slot(mbox_id, producer->message, producer->msg_size);
 	}
 }
 
@@ -347,6 +352,16 @@ void print_mbox(int mbox_id){
 	}	
 }
 
+void print_prodq(int mbox_id){
+	USLOSS_Console("PRODUCER QUEUE %d\n", mbox_id);
+MailBox* mbox_ptr = &mailboxes[mbox_id];
+        PCB* pcb_ptr = mbox_ptr->producers;
+        while(pcb_ptr!=NULL){
+                USLOSS_Console("producer ptr %p id %d \n",pcb_ptr,  pcb_ptr->id);
+                pcb_ptr = pcb_ptr->next_producer;
+        }
+}
+
 /* Sends a message through a mailbox. If delivered directly, do not block.
  * If no consumers queued AND no space for message, block until message can be delivered 
  * 
@@ -375,20 +390,23 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size) {
 	restore_interrupts(old_state);
 	return resp;
 }
-
+/**
+Helper method for both MboxSend and MboxCondSend. This is where
+the actual sending of messages occurs.
+Args:
+    mbox_id - the ID of the mailbox
+    msg_ptr - pointer to a buffer. If messageSize is nonzero, then this must be non-NULL
+    msg_size - the length of the message to send
+    block_on_fail - true if this send should block, false if conditional send
+Return Value:
+    -3: the mailbox was released but is not completely invalid yet
+    -2: The system has run out of global mailbox slots, so the message could not be queued
+    -1: Illegal values given as arguments including invalid mailbox ID
+    0: Success
+*/
 int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 	if (TRACE)
 		USLOSS_Console("TRACE: In MboxSend (id:%d) \n", mbox_id);
-	
-	// Log process that is sending
-	int pid = getpid();
-	PCB* producer = &shadowTable[pid%MAXPROC];;
-	if (shadowTable[pid%MAXPROC].status == PCB_INACTIVE) {
-		producer->id = pid;
-		producer->status = PCB_PRODUCER;
-		producer->next_consumer = NULL;
-		producer->next_producer = NULL;
-	}
 
 	MailBox* mbox_ptr = &mailboxes[mbox_id];	
 	if(mbox_ptr->status == MAILBOX_RELEASED){
@@ -399,6 +417,16 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 	}
 	if(msg_size>mbox_ptr->slot_size){
 		return -1;
+	}
+	int result=0;
+	// Log process that is sending
+	int pid = getpid();
+	PCB* producer = &shadowTable[pid%MAXPROC];;
+	if (shadowTable[pid%MAXPROC].status == PCB_INACTIVE) {
+		producer->id = pid;
+		producer->status = PCB_PRODUCER;
+		producer->next_consumer = NULL;
+		producer->next_producer = NULL;
 	}
 
 	if (mbox_ptr->status == MAILBOX_ACTIVE_ZERO) {
@@ -415,9 +443,12 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 					
 					// Check if Mailbox is released while blocked
 					if(mbox_ptr->status == MAILBOX_RELEASED) {
+						shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
 						return -3;
 					}
+					
 				} else {
+					shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
 					return -2;
 				}
 		} 
@@ -436,22 +467,33 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
                 if (mbox_ptr->slots_used == mbox_ptr->max_slots) {
                         if (block_on_fail) {
                                 producer->status = BLOCK_WAITING_ON_CONSUMER;
+				memcpy(producer->message, msg_ptr, msg_size);
+				producer->msg_size = msg_size;
                                 join_producer_queue(mbox_id, producer);
-                                blockMe(BLOCK_WAITING_ON_CONSUMER);
+                                //print_prodq(mbox_id);
+				blockMe(BLOCK_WAITING_ON_CONSUMER);
 
                                 // Check if Mailbox is released while blocked
                                 if(mbox_ptr->status == MAILBOX_RELEASED) {
-                                        return -3;
+                                    shadowTable[pid%MAXPROC].status = PCB_INACTIVE;    
+						return -3;
                                 }
+				//USLOSS_Console("unblock in send!\n");
+				result = producer->result;
+				//leave_producer_queue(mbox_id, producer);
+				//print_prodq(mbox_id);
                         } else {
-                                return -2;
+					shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
+					return -2;
                         }
                 }
+		else{/*
 		// Initializing the slot
 		MailSlot slot;
 		int id = get_next_mailslot_id();
 		if(id==-1){
 			USLOSS_Console("MboxSend_helper: Could not send, the system is out of mailbox slots.\n");
+			shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
 			return -2;
 		}
 
@@ -475,6 +517,7 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 			slot_ptr->next_message = &mailSlots[id];
 		}
 		mbox_ptr->slots_used++;
+		print_mbox(mbox_id);
 		
 		// Check if there is a consumer ready
 		PCB* consumer = mbox_ptr->consumers;
@@ -491,17 +534,73 @@ int Send(int mbox_id, void *msg_ptr, int msg_size, bool block_on_fail) {
 
 				consumer->status = PCB_CONSUMER;
 				leave_consumer_queue(mbox_id, consumer);
+				USLOSS_Console("unblocking consumer %d and giving it message %d\n", consumer->id, id);
 				unblockProc(consumer->id);	
 			}
 		} else {
 			mailSlots[id].status = MAILSLOT_MSG_UNCLAIMED;
+		}*/
+		result = put_in_slot(mbox_id, msg_ptr, msg_size);
 		}
 	}
-	
-	return 0;
+	shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
+	return result;
 
 }
 
+int put_in_slot(int mbox_id, void* msg_ptr, int  msg_size){
+		MailBox* mbox_ptr = &mailboxes[mbox_id%MAXMBOX];
+		MailSlot slot;
+                int id = get_next_mailslot_id();
+                if(id==-1){
+                        USLOSS_Console("MboxSend_helper: Could not send, the system is out of mailbox slots.\n");
+                        //shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
+                        return -2;
+                }
+
+                slot.id = id;
+                slot.msg_size = msg_size;
+                memcpy(slot.message, msg_ptr, msg_size);
+                slot.claimant = NULL;
+                slot.next_message = NULL;
+                slot.status = MAILSLOT_ACTIVE;
+                mailSlots[id%MAXSLOTS] = slot;
+
+
+                // Adding message to slot 
+                if (mbox_ptr->head == NULL) {
+                        mbox_ptr->head = &mailSlots[id];
+                } else {
+                        MailSlot* slot_ptr = mbox_ptr->head;
+                        while (slot_ptr->next_message != NULL) {
+                                slot_ptr = slot_ptr->next_message;
+                        }
+                        slot_ptr->next_message = &mailSlots[id];
+                }
+                mbox_ptr->slots_used++;
+		// Check if there is a consumer ready
+                PCB* consumer = mbox_ptr->consumers;
+                if (consumer != NULL) {
+                        mailSlots[id].status = MAILSLOT_MSG_CLAIMED;
+                        mailSlots[id].claimant = consumer;
+
+                        // Copy the message onto the PCB object
+                        memcpy(consumer->message, msg_ptr, msg_size);
+
+                        if (consumer->status == BLOCK_WAITING_ON_PRODUCER) {
+                                if (DEBUG)
+                                        USLOSS_Console("DEBUG: Consumer waiting. Unblocking (%d)\n", consumer->id);
+
+                                consumer->status = PCB_CONSUMER;
+                                leave_consumer_queue(mbox_id, consumer);
+                                //USLOSS_Console("unblocking consumer %d and giving it message %d\n", consumer->id, id);
+                                unblockProc(consumer->id);
+                        }
+                } else {
+                        mailSlots[id].status = MAILSLOT_MSG_UNCLAIMED;
+                }
+		return 0;
+}
 /* Receives the message. 
  * If a message has been claimed and the pid matches, success. 
  * If a message has not been claimed and a process comes in, success. Otherwise, block
@@ -546,7 +645,8 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 		USLOSS_Console("ERROR: Invalid parameters\n");
 		return -1;
 	}
-
+	//USLOSS_Console("Current mbox before receive\n");
+	//print_mbox(mbox_id);
 	// Log process that is receiving
 	int pid = getpid();
 	PCB* consumer = &shadowTable[pid%MAXPROC];
@@ -568,6 +668,7 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 			msg_size =  producer->msg_size; 
 			// Trying to recieve a message that's bigger than buffer
 			if(msg_size>msg_max_size){
+				shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
 				return -1;
 			}
 			if (msg_ptr != NULL)
@@ -584,22 +685,25 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
                                         
                                 // Check if Mailbox is released while blocked
                                 if(mbox_ptr->status == MAILBOX_RELEASED) {
-                                	return -3;
+                                	shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
+						return -3;
                                 }
 					msg_size = consumer->msg_size;
 					// Trying to recieve a message that's bigger than buffer
 					if(msg_size>msg_max_size){
+						shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
 						return -1;
 					}
                         	if (msg_ptr != NULL)
                                 	memcpy(msg_ptr, consumer->message, msg_size);
 				
                         } else {
-                                        return -2;
+                              shadowTable[pid%MAXPROC].status = PCB_INACTIVE;          
+					return -2;
                        	}
  		}
 		shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
-                return msg_size;
+		return msg_size;
 	}
 
 	else {
@@ -616,9 +720,11 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 				}	
 				// Check if Mailbox is released while blocked
 				if(mbox_ptr->status == MAILBOX_RELEASED) {
+					shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
 					return -3;
 				}
 			} else {
+				shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
 				return -2;
 			}
 		}
@@ -669,6 +775,7 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 
 				} else {
 					USLOSS_Console("ERROR: Conditional receive and all messages are already claimed\n");
+					shadowTable[pid%MAXPROC].status = PCB_INACTIVE;
 					return -2;
 				}
 			}
@@ -700,13 +807,20 @@ int Recv(int mbox_id, void *msg_ptr, int msg_max_size, bool block_on_fail) {
 	
 	// Removing consumer from shadowTable
 	shadowTable[pid%MAXPROC].status = PCB_INACTIVE;		
-	
+	//USLOSS_Console("at end of receive\n");
+	//print_prodq(mbox_id);	
 	// Unblocking the producer, if it's blocked
 	PCB* producer_ptr = mbox_ptr->producers;
 	if (producer_ptr != NULL) {
-		mbox_ptr->producers = producer_ptr->next_producer;
-		producer_ptr->status = PCB_PRODUCER;
-		unblockProc(producer_ptr->id);	
+		//mbox_ptr->producers = producer_ptr->next_producer;
+		leave_producer_queue(mbox_id, producer_ptr);
+		//USLOSS_Console("done realesing\n");
+		//if(producer_ptr->status!=PCB_PRODUCER){
+			producer_ptr->status = PCB_PRODUCER;
+			unblockProc(producer_ptr->id);	
+		//	return msg_size;
+		//}
+		//producer_ptr = producer_ptr->next_producer;
 	}
 	
 	return msg_size;
